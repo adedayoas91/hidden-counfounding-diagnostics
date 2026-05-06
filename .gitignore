@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+data/
+outputs/
+.notebook_cache/
+.uv-cache/
+src/markovianity_diagnostic/experiments/.mpl_cache/
+
+# envs
+.venv/
+src/hidden_conf_*/

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hidden-conf-diag"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cdt>=0.6.0",
+    "matplotlib>=3.10.9",
+    "numpy>=1.26",
+    "torch==2.2.2",
+]
+
+[project.scripts]
+markov-exp = "markovianity_diagnostic.cli.experiment:main"
+markov-bootstrap = "markovianity_diagnostic.cli.bootstrap:main"
+
+[project.optional-dependencies]
+notebooks = [
+    "ipywidgets>=8.1.8",
+    "jupyter>=1.1.1",
+    "pandas>=2.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
