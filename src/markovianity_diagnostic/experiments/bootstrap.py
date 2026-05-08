@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from .metrics import compact_graph_instability
+from .graph_metrics import compute_graph_instability
 
 
 def fit_null_var(X: np.ndarray, p0: int) -> dict[str, Any]:
@@ -90,7 +90,7 @@ def max_instability_after_p0(
 ) -> tuple[float, dict[int, float]]:
     """Extract ``T_obs`` and the subset of ``D_p`` values for ``p > p0``."""
 
-    d_values = compact_graph_instability(adjacencies)
+    d_values = compute_graph_instability(adjacencies)
     selected = {p_value: value for p_value, value in d_values.items() if p_value > p0}
     return (max(selected.values()) if selected else 0.0), selected
 
