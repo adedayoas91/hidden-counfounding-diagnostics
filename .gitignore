@@ -11,3 +11,4 @@ src/markovianity_diagnostic/experiments/.mpl_cache/
 # envs
 .venv/
 src/hidden_conf_*/
+*.png
