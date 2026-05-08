@@ -10,7 +10,7 @@ from statistics import mean
 from typing import Any
 
 from .adapters import METHODS, load_external_method
-from .metrics import summarize_run
+from .graph_metrics import summarize_run
 from .simulations import SCENARIOS
 
 
