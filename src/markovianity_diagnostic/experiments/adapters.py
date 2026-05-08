@@ -3,11 +3,32 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 from collections.abc import Callable
+from pathlib import Path
+import sys
 
 import numpy as np
 
-from markovianity_diagnostic.core import GcStar
+
+def _load_gcstar_class() -> type:
+    """Load GcStar from the notebook-friendly causalised module."""
+
+    module_path = Path(__file__).resolve().parents[1] / "core" / "causalised-GC.py"
+    spec = importlib.util.spec_from_file_location(
+        "markovianity_diagnostic.core.causalised_gc",
+        module_path,
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load GcStar from {module_path}.")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.GcStar
+
+
+GcStar = _load_gcstar_class()
 
 
 def _design_matrix(X: np.ndarray, p: int) -> tuple[np.ndarray, np.ndarray]:

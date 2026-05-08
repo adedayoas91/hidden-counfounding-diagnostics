@@ -241,22 +241,26 @@ class GcStar:
         sig_inv = np.multiply(self.inv_corr_, self.pVal_inv_corr_ <= beta)
         inferred = np.logical_and(sig_corr, sig_inv)
 
-        blocks: list[np.ndarray] = []
+        all_: list[np.ndarray] = []
         n_neur = inferred.shape[1]
         for lag in range(self.n_pasts + 1):
             start = lag * n_neur
             stop = (lag + 1) * n_neur
-            blocks.append(inferred[start:stop, 0:n_neur])
+            all_.append(inferred[start:stop, 0:n_neur])
 
         if simulation:
-            self.conn_mat = blocks[1] if len(blocks) > 1 else blocks[0]
-        else:
-            self.conn_mat = blocks[0]
-            if len(blocks) > 1 and self.n_lags == 1:
-                self.conn_mat = np.logical_or(blocks[0], blocks[1])
-
-        for lag in range(1, min(self.n_lags + 1, len(blocks))):
-            self.conn_mat = np.logical_or(self.conn_mat, blocks[lag])
+            self.conn_mat = all_[1] if len(all_) > 1 else all_[0]
+            if self.n_lags > 1:
+                max_lag = min(self.n_lags, len(all_) - 1)
+                for i in range(2, max_lag + 1):
+                    self.conn_mat = np.logical_or(self.conn_mat, all_[i])
+        elif self.n_lags == 1:
+            self.conn_mat = np.logical_or(all_[0], all_[1]) if len(all_) > 1 else all_[0]
+        elif self.n_lags > 1:
+            self.conn_mat = all_[0]
+            max_lag = min(self.n_lags, len(all_) - 1)
+            for i in range(1, max_lag + 1):
+                self.conn_mat = np.logical_or(self.conn_mat, all_[i])
 
         self.conn_mat = np.multiply(self.corr_[:n_neur, :], self.conn_mat)
         return self.conn_mat
