@@ -1,27 +1,37 @@
-# Markovianity Diagnostic
+# Hidden Confounding Diagnostics
 
-GitHub-ready code package for the c-GC/fcGC Markovianity-diagnostic workflow used in the manuscript.
+Codebase for Markovianity-based hidden-confounding diagnostics with a packaged simulation/CLI pipeline and notebook-based baselines (c-GC/c-GC\*, PCMCI+, LPCMCI).
 
-## Layout
+## Project status
 
-- `src/markovianity_diagnostic/core/`
-  Core estimator implementation.
-- `src/markovianity_diagnostic/experiments/`
-  Synthetic scenarios, adapters, metrics, bootstrap calibration, and plotting helpers.
-- `src/markovianity_diagnostic/cli/`
-  Command-line entry points for experiment and bootstrap runs.
-- `notebooks/`
-  Interactive analysis notebook aligned with the packaged code.
+- The Python package and CLI workflow are active and runnable from `src/markovianity_diagnostic/`.
+- Notebook workflows have been reorganized into method-specific folders (`notebooks/c-GC`, `notebooks/c-GC-star`, `notebooks/pcmci`, `notebooks/others`).
+- The legacy `notebooks/run_notebook_simulation.ipynb` workflow is now represented by the method-specific simulation notebooks.
+- Additional analysis notebooks are present for LPCMCI (`notebooks/lpcmci_simulation.ipynb`) and v2a-RSN stability metrics (`notebooks/v2a_RSN_metrics.ipynb`).
 
-## Quick start
+## Repository layout
 
-Create an environment and install the package in editable mode:
+- `src/markovianity_diagnostic/core/`: estimator implementation (`causalised-GC.py`) and utilities.
+- `src/markovianity_diagnostic/experiments/`: synthetic scenarios, method adapters, metrics, experiment runner, and bootstrap calibration.
+- `src/markovianity_diagnostic/cli/`: command entry points (`markov-exp`, `markov-bootstrap`).
+- `notebooks/`: exploratory and benchmark notebooks (c-GC/c-GC\*, PCMCI+, LPCMCI, tutorials, domain metrics).
+- `data/`: datasets, simulation helpers, and generated outputs.
+
+## Installation
 
 ```bash
 pip install -e .
 ```
 
-Run a small experiment sweep:
+Optional notebook extras:
+
+```bash
+pip install -e ".[notebooks]"
+```
+
+## CLI quick start
+
+Run a compact experiment sweep:
 
 ```bash
 markov-exp \
@@ -34,7 +44,7 @@ markov-exp \
   --output-dir outputs/order1_cgc
 ```
 
-Run bootstrap calibration:
+Run surrogate-null bootstrap calibration:
 
 ```bash
 markov-bootstrap \
@@ -48,8 +58,16 @@ markov-bootstrap \
   --output-dir outputs/bootstrap_fcgc
 ```
 
-## Notes
+## Available scenarios and methods
 
-- The estimator path is intentionally lightweight and defaults to adjacency-level outputs so it integrates directly with the experiment harness.
-- `cdt` is optional and only required if structural metrics such as SHD/SID are explicitly requested.
-- The bundled notebook uses small defaults for interactive smoke tests. Scale `T`, `REPEATS`, and `n_perm` upward for manuscript-quality runs.
+**Scenarios**: `order1_unconfounded`, `order3_unconfounded`, `latent_common_driver`, `variable_lag_unconfounded`, `hidden_nodes`
+
+**Built-in methods**: `baseline_lstsq`, `gcstar_cgc`, `gcstar_fcgc`  
+You can also pass `--user-method module:function` to plug in external analyzers.
+
+## Notebook map
+
+- `notebooks/pcmci/`: PCMCI+ analyses for single-lag/variable-lag and Markovian/non-Markovian settings.
+- `notebooks/lpcmci_simulation.ipynb`: LPCMCI tau-sweep simulation analysis.
+- `notebooks/c-GC/` and `notebooks/c-GC-star/`: c-GC and c-GC\* simulation notebooks across lag/confounding settings.
+- `notebooks/v2a_RSN_metrics.ipynb`: ground-truth-free stability metrics over v2a-RSN adjacency outputs.
