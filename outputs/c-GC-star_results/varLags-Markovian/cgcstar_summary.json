@@ -1,0 +1,26 @@
+{
+  "method": "fcgc",
+  "scenario": "varLags-Markovian",
+  "notebook": "notebooks/c-GC-star/c-GC-star-varLags-Markovian.ipynb",
+  "n_trials": 10,
+  "n_pasts": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "mean_accuracy": 0.9857,
+  "std_accuracy": 0.0103,
+  "mean_precision": 0.9742,
+  "std_precision": 0.0179,
+  "mean_recall": 0.9106,
+  "std_recall": 0.0955,
+  "mean_fpr": 0.004,
+  "std_fpr": 0.0031,
+  "mean_balanced_accuracy": 0.9533,
+  "std_balanced_accuracy": 0.0471,
+  "mean_f1": 0.9382,
+  "std_f1": 0.0525
+}

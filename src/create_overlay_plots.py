@@ -11,7 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ROOT = Path(__file__).parent
-OUTPUT_DIR = ROOT / 'data' / 'outputs'
+OUTPUT_DIR = ROOT.parent / 'outputs'
+FIGURES_DIR = OUTPUT_DIR / 'figures'
 
 METRIC_NAMES = ['accuracy', 'precision', 'recall', 'fpr', 'balanced_accuracy', 'f1']
 METRIC_LABELS = {
@@ -29,14 +30,14 @@ METHODS = {
         'color': '#1f77b4',  # blue
         'marker': 'o',
         'linestyle': '-',
-        'path': OUTPUT_DIR / 'c-GC',
+        'path': OUTPUT_DIR / 'c-GC_results',
         'agg_filename': 'cgc_aggregated.json',
     },
     'c-GC*': {
         'color': '#ff7f0e',  # orange
         'marker': 's',
         'linestyle': '--',
-        'path': OUTPUT_DIR / 'c-GC-star',
+        'path': OUTPUT_DIR / 'c-GC-star_results',
         'agg_filename': 'cgcstar_aggregated.json',
     },
     'PCMCI+': {
@@ -115,26 +116,21 @@ def plot_overlay_scenario(scenario: str) -> None:
 
     # Create figure
     fig, axes = plt.subplots(2, 3, figsize=(20, 10))
-    fig.suptitle(
-        f'Method Comparison: {scenario}',
-        fontsize=18,
-        fontweight='bold'
-    )
     axes = axes.flatten()
-    
+
     # Plot each metric
     for metric_idx, metric in enumerate(METRIC_NAMES):
         axis = axes[metric_idx]
-        
+
         # Plot each method
         for method_name, method_data in all_data.items():
             n_pasts = method_data['n_pasts']
             agg = method_data['aggregated']
             config = method_data['config']
-            
+
             means = [agg[str(n)][metric]['mean'] for n in n_pasts]
             stds = [agg[str(n)][metric]['std'] for n in n_pasts]
-            
+
             # Plot line with markers
             axis.plot(
                 n_pasts, means,
@@ -146,7 +142,7 @@ def plot_overlay_scenario(scenario: str) -> None:
                 label=method_name,
                 alpha=0.8
             )
-            
+
             # Add error bars
             axis.errorbar(
                 n_pasts, means,
@@ -158,7 +154,7 @@ def plot_overlay_scenario(scenario: str) -> None:
                 alpha=0.6,
                 elinewidth=1.5
             )
-        
+
         # Formatting
         axis.set_xlabel('$n_{past}$', fontsize=12, fontweight='bold')
         axis.set_ylabel('Score', fontsize=12, fontweight='bold')
@@ -170,31 +166,27 @@ def plot_overlay_scenario(scenario: str) -> None:
         if metric == 'fpr':
             axis.set_ylim([-0.002, 0.08])
         else:
-            # Apply user-requested overrides for varLags-Markovian
-            if scenario == 'varLags-Markovian' and metric == 'recall':
-                axis.set_ylim([0.675, 1.02])
-            elif scenario == 'varLags-Markovian' and metric == 'balanced_accuracy':
-                axis.set_ylim([0.82, 1.0])
-            else:
-                y_min, y_max = compute_data_range(all_data, metric)
-                axis.set_ylim([y_min, y_max])
+            y_min, y_max = compute_data_range(all_data, metric)
+            axis.set_ylim([y_min, y_max])
 
     plt.tight_layout()
-    fig.subplots_adjust(top=0.93)
+
+    # Ensure figures directory exists
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
     # Save with convention: varLags-Markovian.png, varLags-NonMarkovian.png
-    output_path = OUTPUT_DIR / f'{scenario}.png'
+    output_path = FIGURES_DIR / f'{scenario}.png'
     fig.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close(fig)
 
-    print(f"✓ Saved overlay plot → {output_path.relative_to(ROOT)}")
+    print(f"✓ Saved overlay plot → {output_path.relative_to(ROOT.parent)}")
 
 
 def main():
     """Main entry point."""
-    print("\n🔄 Creating overlay plots for varLags scenarios...\n")
+    print("\n🔄 Creating overlay plots for all scenarios...\n")
 
-    scenarios = ['varLags-Markovian', 'varLags-NonMarkovian']
+    scenarios = ['singleLag-Markovian', 'singleLag-NonMarkovian', 'varLags-Markovian', 'varLags-NonMarkovian']
 
     for scenario in scenarios:
         plot_overlay_scenario(scenario)

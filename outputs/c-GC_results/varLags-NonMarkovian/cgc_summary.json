@@ -1,0 +1,26 @@
+{
+  "method": "cgc",
+  "scenario": "varLags-NonMarkovian",
+  "notebook": "notebooks/c-GC/c-GC-varLags-NonMarkovian.ipynb",
+  "n_trials": 10,
+  "n_pasts": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "mean_accuracy": 0.9787,
+  "std_accuracy": 0.0137,
+  "mean_precision": 0.9239,
+  "std_precision": 0.0647,
+  "mean_recall": 0.8998,
+  "std_recall": 0.1097,
+  "mean_fpr": 0.011,
+  "std_fpr": 0.0113,
+  "mean_balanced_accuracy": 0.9444,
+  "std_balanced_accuracy": 0.0533,
+  "mean_f1": 0.9059,
+  "std_f1": 0.0634
+}
