@@ -1,0 +1,158 @@
+{
+  "2": {
+    "accuracy": {
+      "mean": 0.966,
+      "std": 0.0088
+    },
+    "precision": {
+      "mean": 0.8434,
+      "std": 0.0603
+    },
+    "recall": {
+      "mean": 0.8791,
+      "std": 0.0464
+    },
+    "fpr": {
+      "mean": 0.0225,
+      "std": 0.0094
+    },
+    "balanced_accuracy": {
+      "mean": 0.9283,
+      "std": 0.0229
+    },
+    "f1": {
+      "mean": 0.8593,
+      "std": 0.0408
+    }
+  },
+  "3": {
+    "accuracy": {
+      "mean": 0.9857,
+      "std": 0.0053
+    },
+    "precision": {
+      "mean": 0.9856,
+      "std": 0.0183
+    },
+    "recall": {
+      "mean": 0.8927,
+      "std": 0.0485
+    },
+    "fpr": {
+      "mean": 0.002,
+      "std": 0.0026
+    },
+    "balanced_accuracy": {
+      "mean": 0.9453,
+      "std": 0.0239
+    },
+    "f1": {
+      "mean": 0.936,
+      "std": 0.026
+    }
+  },
+  "4": {
+    "accuracy": {
+      "mean": 0.9851,
+      "std": 0.005
+    },
+    "precision": {
+      "mean": 0.9773,
+      "std": 0.0183
+    },
+    "recall": {
+      "mean": 0.8961,
+      "std": 0.0418
+    },
+    "fpr": {
+      "mean": 0.0031,
+      "std": 0.0027
+    },
+    "balanced_accuracy": {
+      "mean": 0.9465,
+      "std": 0.0206
+    },
+    "f1": {
+      "mean": 0.9343,
+      "std": 0.0231
+    }
+  },
+  "5": {
+    "accuracy": {
+      "mean": 0.9861,
+      "std": 0.005
+    },
+    "precision": {
+      "mean": 0.985,
+      "std": 0.0157
+    },
+    "recall": {
+      "mean": 0.8969,
+      "std": 0.0455
+    },
+    "fpr": {
+      "mean": 0.0022,
+      "std": 0.0023
+    },
+    "balanced_accuracy": {
+      "mean": 0.9474,
+      "std": 0.0224
+    },
+    "f1": {
+      "mean": 0.9382,
+      "std": 0.0239
+    }
+  },
+  "6": {
+    "accuracy": {
+      "mean": 0.9858,
+      "std": 0.0058
+    },
+    "precision": {
+      "mean": 0.9835,
+      "std": 0.0184
+    },
+    "recall": {
+      "mean": 0.8949,
+      "std": 0.0478
+    },
+    "fpr": {
+      "mean": 0.0021,
+      "std": 0.0024
+    },
+    "balanced_accuracy": {
+      "mean": 0.9464,
+      "std": 0.0239
+    },
+    "f1": {
+      "mean": 0.9363,
+      "std": 0.0272
+    }
+  },
+  "7": {
+    "accuracy": {
+      "mean": 0.9858,
+      "std": 0.0048
+    },
+    "precision": {
+      "mean": 0.9826,
+      "std": 0.0165
+    },
+    "recall": {
+      "mean": 0.8973,
+      "std": 0.0457
+    },
+    "fpr": {
+      "mean": 0.0025,
+      "std": 0.0025
+    },
+    "balanced_accuracy": {
+      "mean": 0.9474,
+      "std": 0.0223
+    },
+    "f1": {
+      "mean": 0.9372,
+      "std": 0.0232
+    }
+  }
+}
