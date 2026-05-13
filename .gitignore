@@ -3,7 +3,7 @@ __pycache__/
 .ipynb_checkpoints/
 
 data/
-outputs/
+outputs/twins_notebook/
 .notebook_cache/
 .uv-cache/
 src/markovianity_diagnostic/experiments/.mpl_cache/
@@ -11,4 +11,3 @@ src/markovianity_diagnostic/experiments/.mpl_cache/
 # envs
 .venv/
 src/hidden_conf_*/
-*.png

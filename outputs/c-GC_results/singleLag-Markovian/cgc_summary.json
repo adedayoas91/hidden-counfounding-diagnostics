@@ -1,0 +1,27 @@
+{
+  "method": "cgc",
+  "scenario": "singleLag-Markovian",
+  "notebook": "notebooks/c-GC/c-GC-singleLag-Markovian.ipynb",
+  "n_trials": 10,
+  "n_pasts": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "mean_accuracy": 0.9916,
+  "std_accuracy": 0.0064,
+  "mean_precision": 0.9899,
+  "std_precision": 0.0118,
+  "mean_recall": 0.9393,
+  "std_recall": 0.0545,
+  "mean_fpr": 0.0014,
+  "std_fpr": 0.0016,
+  "mean_balanced_accuracy": 0.969,
+  "std_balanced_accuracy": 0.027,
+  "mean_f1": 0.963,
+  "std_f1": 0.0283
+}
