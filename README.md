@@ -1,6 +1,6 @@
 # Hidden Confounding Diagnostics
 
-A comprehensive research framework for detecting and diagnosing latent confounders in time series data using **Markovianity-based causal inference** methods. This project implements multiple state-of-the-art approaches (c-GC, c-GC*, PCMCI+, FullCI, LPCMCI) and provides both command-line tools and interactive Jupyter notebooks for simulation, benchmarking, and real-world applications.
+A comprehensive research framework for detecting and diagnosing latent confounders in time series data using **Markovianity-based causal inference** methods. This project implements multiple state-of-the-art approaches (c-GC, c-GC*, PCMCI+, JPCMCIplus, FullCI, LPCMCI) and provides both command-line tools and interactive Jupyter notebooks for simulation, benchmarking, and real-world applications.
 
 ## Overview
 
@@ -10,7 +10,7 @@ The project addresses a fundamental challenge in causal discovery from time seri
 
 - ✅ **Python package**: Active and runnable from `src/markovianity_diagnostic/` with CLI commands (`markov-exp`, `markov-bootstrap`)
 - ✅ **Simulation pipeline**: Comprehensive synthetic scenario generation across multiple confounding and lag configurations
-- ✅ **Notebooks**: Organized method-specific notebooks for c-GC, c-GC*, c-GC*, PCMCI+, FullCI, and LPCMCI
+- ✅ **Notebooks**: Organized method-specific notebooks for c-GC, c-GC*, PCMCI+, JPCMCIplus, FullCI, and LPCMCI
 - ✅ **Benchmark outputs**: Pre-computed aggregated results and visualizations in `outputs/`
 - ✅ **Visualization**: Overlay plots comparing all methods across metrics (accuracy, precision, recall, F1, FPR, balanced accuracy)
 
@@ -34,7 +34,9 @@ hidden-confounding-diagnostics/
 ├── notebooks/                          # Interactive analysis notebooks
 │   ├── c-GC/                          # c-GC method notebooks (single/variable lag, Markovian/non-Markovian)
 │   ├── c-GC-star/                     # c-GC* method notebooks (single/variable lag, Markovian/non-Markovian)
-│   ├── pcmci/                         # PCMCI+ analysis notebooks
+│   ├── pcmciplus/                     # PCMCI+ analysis notebooks
+│   ├── jpcmciplus/                    # JPCMCIplus analysis notebooks
+│   ├── lpcmci/                        # LPCMCI analysis notebooks
 │   ├── fullci/                        # FullCI analysis notebooks
 │   ├── c-GC-star/                     # c-GC* analysis notebooks
 │   ├── others/                        # Additional tutorials and analyses
@@ -52,6 +54,8 @@ hidden-confounding-diagnostics/
 │   ├── c-GC_results/                  # c-GC aggregated results
 │   ├── c-GC-star_results/             # c-GC* aggregated results
 │   ├── pcmci_plus_results/            # PCMCI+ aggregated results
+│   ├── jpcmciplus_results/            # JPCMCIplus aggregated results
+│   ├── lpcmci_results/                # LPCMCI aggregated results
 │   ├── fullci_results/                # FullCI aggregated results
 │   └── figures/                       # Comparison plots & visualizations
 │
@@ -131,8 +135,12 @@ Notebooks are organized by **method** and **scenario**. Each notebook typically 
 | | `notebooks/c-GC/singleLag-NonMarkovian.ipynb` | `notebooks/c-GC/varLags-NonMarkovian.ipynb` |
 | **c-GC*** | `notebooks/c-GC-star/singleLag-Markovian.ipynb` | `notebooks/c-GC-star/varLags-Markovian.ipynb` |
 | | `notebooks/c-GC-star/singleLag-NonMarkovian.ipynb` | `notebooks/c-GC-star/varLags-NonMarkovian.ipynb` |
-| **PCMCI+** | `notebooks/pcmci/pcmci_plus_singleLag-Markovian.ipynb` | `notebooks/pcmci/pcmci_plus_varLags-Markovian.ipynb` |
-| | `notebooks/pcmci/pcmci_plus_singleLag-NonMarkovian.ipynb` | `notebooks/pcmci/pcmci_plus_varLags-NonMarkovian.ipynb` |
+| **PCMCI+** | `notebooks/pcmciplus/pcmci_plus_singleLag-Markovian.ipynb` | `notebooks/pcmciplus/pcmci_plus_varLags-Markovian.ipynb` |
+| | `notebooks/pcmciplus/pcmci_plus_singleLag-NonMarkovian.ipynb` | `notebooks/pcmciplus/pcmci_plus_varLags-NonMarkovian.ipynb` |
+| **JPCMCIplus** | `notebooks/jpcmciplus/jpcmciplus_singleLag-Markovian.ipynb` | `notebooks/jpcmciplus/jpcmciplus_varLags-Markovian.ipynb` |
+| | `notebooks/jpcmciplus/jpcmciplus_singleLag-NonMarkovian.ipynb` | `notebooks/jpcmciplus/jpcmciplus_varLags-NonMarkovian.ipynb` |
+| **LPCMCI** | `notebooks/lpcmci/lpcmci_singleLag-Markovian.ipynb` | `notebooks/lpcmci/lpcmci_varLags-Markovian.ipynb` |
+| | `notebooks/lpcmci/lpcmci_singleLag-NonMarkovian.ipynb` | `notebooks/lpcmci/lpcmci_varLags-NonMarkovian.ipynb` |
 | **FullCI** | `notebooks/fullci/fullci_singleLag-Markovian.ipynb` | `notebooks/fullci/fullci_varLags-Markovian.ipynb` |
 | | `notebooks/fullci/fullci_singleLag-NonMarkovian.ipynb` | `notebooks/fullci/fullci_varLags-NonMarkovian.ipynb` |
 
@@ -171,8 +179,8 @@ Pre-computed overlay comparison plots are available in `outputs/figures/`:
 
 ```
 outputs/figures/
-├── singleLag-Markovian.png              # c-GC vs c-GC* vs PCMCI+
-├── singleLag-Markovian-all_methods.png  # c-GC vs c-GC* vs PCMCI+ vs FullCI
+├── singleLag-Markovian.png              # Overlay across available methods
+├── singleLag-Markovian-all_methods.png  # Legacy all-methods overlay
 ├── singleLag-NonMarkovian.png
 ├── singleLag-NonMarkovian-all_methods.png
 ├── varLags-Markovian.png
@@ -231,7 +239,8 @@ You can also pass `--user-method module:function` to plug in external analyzers.
 
 ## Notebook map
 
-- `notebooks/pcmci/`: PCMCI+ analyses for single-lag/variable-lag and Markovian/non-Markovian settings.
-- `notebooks/lpcmci_simulation.ipynb`: LPCMCI tau-sweep simulation analysis.
+- `notebooks/pcmciplus/`: PCMCI+ analyses for single-lag/variable-lag and Markovian/non-Markovian settings.
+- `notebooks/jpcmciplus/`: JPCMCIplus analyses for single-lag/variable-lag and Markovian/non-Markovian settings.
+- `notebooks/lpcmci/`: LPCMCI analyses for single-lag/variable-lag and Markovian/non-Markovian settings.
 - `notebooks/c-GC/` and `notebooks/c-GC-star/`: c-GC and c-GC\* simulation notebooks across lag/confounding settings.
 - `notebooks/v2a_RSN_metrics.ipynb`: ground-truth-free stability metrics over v2a-RSN adjacency outputs.

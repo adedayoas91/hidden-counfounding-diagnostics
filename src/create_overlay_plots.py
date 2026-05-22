@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """
-Create overlay plots comparing c-GC, c-GC-star, and PCMCI+ results.
-Only for varLags scenarios where all three methods have results.
+Create overlay plots comparing available method results.
 """
 
 import json
@@ -47,6 +46,20 @@ METHODS = {
         'path': OUTPUT_DIR / 'pcmci_plus_results',
         'agg_filename': 'pcmci_plus_aggregated.json',
     },
+    'JPCMCI+': {
+        'color': '#9467bd',  # purple
+        'marker': 'D',
+        'linestyle': '-.',
+        'path': OUTPUT_DIR / 'jpcmciplus_results',
+        'agg_filename': 'jpcmciplus_aggregated.json',
+    },
+    'LPCMCI': {
+        'color': '#8c564b',  # brown
+        'marker': 'v',
+        'linestyle': '-',
+        'path': OUTPUT_DIR / 'lpcmci_results',
+        'agg_filename': 'lpcmci_aggregated.json',
+    },
 }
 
 
@@ -54,6 +67,14 @@ def load_json(path: Path) -> dict:
     """Load JSON file."""
     with open(path, 'r', encoding='utf-8') as f:
         return json.load(f)
+
+
+def format_path_for_log(path: Path) -> str:
+    """Return a readable path for logs without assuming a specific ancestor."""
+    try:
+        return str(path.relative_to(ROOT.parent))
+    except ValueError:
+        return str(path)
 
 
 def load_method_data(scenario: str) -> dict:
@@ -73,7 +94,7 @@ def load_method_data(scenario: str) -> dict:
                 'config': method_config,
             }
         else:
-            print(f"  ⚠ Missing: {scenario_path.relative_to(ROOT)}")
+            print(f"  ⚠ Missing: {format_path_for_log(scenario_path)}")
 
     return data
 
@@ -174,8 +195,8 @@ def plot_overlay_scenario(scenario: str) -> None:
     # Ensure figures directory exists
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Save with convention: varLags-Markovian.png, varLags-NonMarkovian.png
-    output_path = FIGURES_DIR / f'{scenario}.png'
+    # Save with convention expected by downstream usage.
+    output_path = FIGURES_DIR / f'{scenario}-all_methods.png'
     fig.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close(fig)
 
