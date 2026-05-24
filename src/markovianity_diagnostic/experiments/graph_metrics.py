@@ -64,8 +64,8 @@ def compute_graph_instability(adjacencies: dict[int, np.ndarray]) -> dict[int, f
     for index in range(1, len(n_pasts)):
         previous_n = n_pasts[index - 1]
         current_n = n_pasts[index]
-        previous = zero_diagonal(adjacencies[previous_n])
-        current = zero_diagonal(adjacencies[current_n])
+        previous = zero_diagonal(adjacencies[previous_n]).astype(int)
+        current = zero_diagonal(adjacencies[current_n]).astype(int)
         output[current_n] = float(np.abs(current - previous).sum() / m)
 
     return output
