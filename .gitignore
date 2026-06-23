@@ -3,6 +3,7 @@ __pycache__/
 .ipynb_checkpoints/
 
 data/
+others/
 outputs/twins_notebook/
 .notebook_cache/
 .uv-cache/
