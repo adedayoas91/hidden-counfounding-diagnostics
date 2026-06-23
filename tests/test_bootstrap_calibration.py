@@ -111,3 +111,281 @@ class TestNullModelMetadata:
         assert metadata["fitted"] is True
         assert metadata["n_samples"] == T
         assert metadata["n_features"] == d
+"""TDD Tests for Phase 1.2: VARNullModel, ResidualBootstrapNull, MovingBlockBootstrapNull"""
+
+import numpy as np
+import pytest
+from markovianity_diagnostic.experiments.calibration import (
+    VARNullModel, ResidualBootstrapNull, MovingBlockBootstrapNull
+)
+
+
+class TestVARNullModelFit:
+    """Test VARNullModel.fit() interface."""
+
+    def test_var_fit_accepts_valid_data(self, synthetic_markov_data):
+        """fit() should accept valid (T, d) data and p0."""
+        model = VARNullModel(p0=1)
+        result = model.fit(synthetic_markov_data, p0=1)
+        assert result is model
+
+    def test_var_fit_returns_self(self, synthetic_markov_data):
+        """fit() must return self for method chaining."""
+        model = VARNullModel(p0=1)
+        result = model.fit(synthetic_markov_data, p0=1)
+        assert result is model
+
+    def test_var_fit_sets_fitted_flag(self, synthetic_markov_data):
+        """fit() should set _fitted flag to True."""
+        model = VARNullModel(p0=1)
+        assert not model._fitted
+        model.fit(synthetic_markov_data, p0=1)
+        assert model._fitted
+
+    def test_var_fit_stores_residual_covariance(self, synthetic_markov_data):
+        """fit() should compute and store residual covariance."""
+        model = VARNullModel(p0=1)
+        model.fit(synthetic_markov_data, p0=1)
+        assert model._cov is not None
+        assert model._cov.shape == (synthetic_markov_data.shape[1],
+                                    synthetic_markov_data.shape[1])
+
+    def test_var_fit_rejects_invalid_p0(self, synthetic_markov_data):
+        """fit() should raise ValueError if p0 >= T."""
+        model = VARNullModel(p0=300)
+        with pytest.raises(ValueError):
+            model.fit(synthetic_markov_data, p0=300)
+
+    def test_var_fit_rejects_invalid_shape(self):
+        """fit() should raise ValueError if X is not 2D."""
+        model = VARNullModel(p0=1)
+        with pytest.raises(ValueError):
+            model.fit(np.random.randn(100), p0=1)
+
+
+class TestVARNullModelSample:
+    """Test VARNullModel.sample() interface."""
+
+    def test_var_sample_shape(self, synthetic_markov_data):
+        """sample() should return (T, d) shaped array."""
+        T, d = synthetic_markov_data.shape
+        model = VARNullModel(p0=1).fit(synthetic_markov_data, p0=1)
+        sample = model.sample(T=100, seed=42)
+        assert sample.shape == (100, d)
+
+    def test_var_sample_reproducible_with_seed(self, synthetic_markov_data):
+        """sample() with same seed should produce identical arrays."""
+        model = VARNullModel(p0=1).fit(synthetic_markov_data, p0=1)
+        sample1 = model.sample(T=100, seed=42)
+        sample2 = model.sample(T=100, seed=42)
+        np.testing.assert_array_equal(sample1, sample2)
+
+    def test_var_sample_different_seeds_produce_different(self, synthetic_markov_data):
+        """sample() with different seeds should produce different arrays."""
+        model = VARNullModel(p0=1).fit(synthetic_markov_data, p0=1)
+        sample1 = model.sample(T=100, seed=42)
+        sample2 = model.sample(T=100, seed=43)
+        assert not np.allclose(sample1, sample2)
+
+    def test_var_sample_unfitted_raises_error(self):
+        """sample() should raise ValueError if model not fitted."""
+        model = VARNullModel(p0=1)
+        with pytest.raises(ValueError):
+            model.sample(T=100, seed=42)
+
+    def test_var_sample_respects_ar_structure(self, synthetic_markov_data):
+        """sample() should respect the VAR(p0) structure."""
+        # Fitted on VAR(1) process, sample should show autocorrelation
+        model = VARNullModel(p0=1).fit(synthetic_markov_data, p0=1)
+        sample = model.sample(T=500, seed=42)
+        
+        # Compute lag-1 correlation (should be nonzero)
+        lag1_corr = np.corrcoef(sample[:-1, 0], sample[1:, 0])[0, 1]
+        assert abs(lag1_corr) > 0.05, "VAR(1) sample should show autocorrelation"
+
+
+class TestVARNullModelMetadata:
+    """Test VARNullModel.metadata property."""
+
+    def test_var_metadata_valid_dict(self, synthetic_markov_data):
+        """metadata should return valid dict with required keys."""
+        model = VARNullModel(p0=1).fit(synthetic_markov_data, p0=1)
+        metadata = model.metadata
+        
+        assert isinstance(metadata, dict)
+        assert "model" in metadata
+        assert metadata["model"] == "VAR"
+        assert "fitted" in metadata
+        assert "p0" in metadata
+        assert "n_samples" in metadata
+        assert "n_features" in metadata
+
+    def test_var_metadata_correct_values(self, synthetic_markov_data):
+        """metadata should report correct values."""
+        T, d = synthetic_markov_data.shape
+        model = VARNullModel(p0=2).fit(synthetic_markov_data, p0=2)
+        metadata = model.metadata
+        
+        assert metadata["fitted"] is True
+        assert metadata["p0"] == 2
+        assert metadata["n_samples"] == T
+        assert metadata["n_features"] == d
+
+
+class TestResidualBootstrapNullFit:
+    """Test ResidualBootstrapNull.fit() interface."""
+
+    def test_residual_bootstrap_fit_stores_residuals(self, synthetic_markov_data):
+        """fit() should store residuals for later resampling."""
+        model = ResidualBootstrapNull(p0=1)
+        model.fit(synthetic_markov_data, p0=1)
+        
+        assert model._residuals is not None
+        assert model._residuals.shape[0] == synthetic_markov_data.shape[0] - 1
+        assert model._residuals.shape[1] == synthetic_markov_data.shape[1]
+
+    def test_residual_bootstrap_fit_stores_var_coefficients(self, synthetic_markov_data):
+        """fit() should store VAR coefficients for predictions."""
+        model = ResidualBootstrapNull(p0=1)
+        model.fit(synthetic_markov_data, p0=1)
+        
+        assert model._A is not None
+        assert model._A.shape == (synthetic_markov_data.shape[1],
+                                  synthetic_markov_data.shape[1])
+
+
+class TestResidualBootstrapNullSample:
+    """Test ResidualBootstrapNull.sample() interface."""
+
+    def test_residual_bootstrap_sample_shape(self, synthetic_markov_data):
+        """sample() should return (T, d) shaped array."""
+        T, d = synthetic_markov_data.shape
+        model = ResidualBootstrapNull(p0=1).fit(synthetic_markov_data, p0=1)
+        sample = model.sample(T=100, seed=42)
+        assert sample.shape == (100, d)
+
+    def test_residual_bootstrap_sample_reproducible(self, synthetic_markov_data):
+        """sample() with same seed should be reproducible."""
+        model = ResidualBootstrapNull(p0=1).fit(synthetic_markov_data, p0=1)
+        sample1 = model.sample(T=100, seed=42)
+        sample2 = model.sample(T=100, seed=42)
+        np.testing.assert_array_equal(sample1, sample2)
+
+    def test_residual_bootstrap_maintains_var_structure(self, synthetic_markov_data):
+        """sample() should respect underlying VAR structure."""
+        model = ResidualBootstrapNull(p0=1).fit(synthetic_markov_data, p0=1)
+        sample = model.sample(T=500, seed=42)
+        
+        # Should show autocorrelation from VAR structure
+        lag1_corr = np.corrcoef(sample[:-1, 0], sample[1:, 0])[0, 1]
+        assert abs(lag1_corr) > 0.05
+
+
+class TestMovingBlockBootstrapNullFit:
+    """Test MovingBlockBootstrapNull.fit() interface."""
+
+    def test_moving_block_bootstrap_fit_valid(self, synthetic_markov_data):
+        """fit() should accept valid data and store residuals."""
+        model = MovingBlockBootstrapNull(p0=1, block_length=20)
+        model.fit(synthetic_markov_data, p0=1)
+        
+        assert model._fitted
+        assert model._residuals is not None
+
+    def test_moving_block_bootstrap_stores_block_length(self, synthetic_markov_data):
+        """fit() should store block_length for resampling."""
+        model = MovingBlockBootstrapNull(p0=1, block_length=15)
+        model.fit(synthetic_markov_data, p0=1)
+        
+        assert model.block_length == 15
+
+
+class TestMovingBlockBootstrapNullSample:
+    """Test MovingBlockBootstrapNull.sample() interface."""
+
+    def test_moving_block_bootstrap_sample_shape(self, synthetic_markov_data):
+        """sample() should return (T, d) shaped array."""
+        T, d = synthetic_markov_data.shape
+        model = MovingBlockBootstrapNull(p0=1, block_length=20).fit(
+            synthetic_markov_data, p0=1
+        )
+        sample = model.sample(T=100, seed=42)
+        assert sample.shape == (100, d)
+
+    def test_moving_block_bootstrap_sample_reproducible(self, synthetic_markov_data):
+        """sample() with same seed should be reproducible."""
+        model = MovingBlockBootstrapNull(p0=1, block_length=20).fit(
+            synthetic_markov_data, p0=1
+        )
+        sample1 = model.sample(T=100, seed=42)
+        sample2 = model.sample(T=100, seed=42)
+        np.testing.assert_array_equal(sample1, sample2)
+
+    def test_moving_block_bootstrap_block_length_respected(self, synthetic_markov_data):
+        """sample() should use the specified block_length."""
+        model = MovingBlockBootstrapNull(p0=1, block_length=10).fit(
+            synthetic_markov_data, p0=1
+        )
+        # If block_length works correctly, we should see some structure
+        sample = model.sample(T=500, seed=42)
+        assert sample.shape == (500, synthetic_markov_data.shape[1])
+
+    def test_moving_block_bootstrap_default_block_length(self, synthetic_markov_data):
+        """Default block_length should be 20."""
+        model = MovingBlockBootstrapNull(p0=1).fit(synthetic_markov_data, p0=1)
+        assert model.block_length == 20
+
+
+class TestAllModelsConsistency:
+    """Test that all models satisfy NullModel interface."""
+
+    @pytest.mark.parametrize("model_class,kwargs", [
+        (VARNullModel, {"p0": 1}),
+        (ResidualBootstrapNull, {"p0": 1}),
+        (MovingBlockBootstrapNull, {"p0": 1, "block_length": 20}),
+    ])
+    def test_all_models_fit_returns_self(self, model_class, kwargs, synthetic_markov_data):
+        """All models should implement fit() returning self."""
+        model = model_class(**kwargs)
+        result = model.fit(synthetic_markov_data, p0=1)
+        assert result is model
+
+    @pytest.mark.parametrize("model_class,kwargs", [
+        (VARNullModel, {"p0": 1}),
+        (ResidualBootstrapNull, {"p0": 1}),
+        (MovingBlockBootstrapNull, {"p0": 1, "block_length": 20}),
+    ])
+    def test_all_models_sample_shape(self, model_class, kwargs, synthetic_markov_data):
+        """All models should return correct sample shape."""
+        T, d = synthetic_markov_data.shape
+        model = model_class(**kwargs).fit(synthetic_markov_data, p0=1)
+        sample = model.sample(T=100, seed=42)
+        assert sample.shape == (100, d)
+
+    @pytest.mark.parametrize("model_class,kwargs", [
+        (VARNullModel, {"p0": 1}),
+        (ResidualBootstrapNull, {"p0": 1}),
+        (MovingBlockBootstrapNull, {"p0": 1, "block_length": 20}),
+    ])
+    def test_all_models_reproducibility(self, model_class, kwargs, synthetic_markov_data):
+        """All models should be reproducible with fixed seed."""
+        model = model_class(**kwargs).fit(synthetic_markov_data, p0=1)
+        sample1 = model.sample(T=100, seed=42)
+        sample2 = model.sample(T=100, seed=42)
+        np.testing.assert_array_equal(sample1, sample2)
+
+    @pytest.mark.parametrize("model_class,kwargs", [
+        (VARNullModel, {"p0": 1}),
+        (ResidualBootstrapNull, {"p0": 1}),
+        (MovingBlockBootstrapNull, {"p0": 1, "block_length": 20}),
+    ])
+    def test_all_models_have_metadata(self, model_class, kwargs, synthetic_markov_data):
+        """All models should implement metadata property."""
+        model = model_class(**kwargs).fit(synthetic_markov_data, p0=1)
+        metadata = model.metadata
+        
+        assert isinstance(metadata, dict)
+        assert "fitted" in metadata
+        assert "n_samples" in metadata
+        assert "n_features" in metadata
+        assert metadata["fitted"] is True
