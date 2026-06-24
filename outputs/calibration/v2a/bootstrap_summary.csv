@@ -1,0 +1,2 @@
+critical_95,dataset,n_bootstrap,null_model,p_value,status
+,v2a,0,VAR(p0),,artifact scaffold; rerun notebook for full bootstrap

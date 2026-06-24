@@ -1,0 +1,271 @@
+{
+  "metadata": {
+    "analysis": "v2a-RSN depth selection (Phase 2.2)",
+    "rules": [
+      "absolute",
+      "relative",
+      "bootstrap_band"
+    ],
+    "absolute_epsilon": 0.01,
+    "absolute_k_stable": 2,
+    "relative_fraction": 0.1,
+    "n_fish": 3,
+    "n_methods": 2,
+    "n_recordings": 8
+  },
+  "fish_mapping": {
+    "F1": "fish-1",
+    "F2": "fish-2",
+    "F4": "fish-3"
+  },
+  "results": [
+    {
+      "fish": "fish-2",
+      "method": "c-GC",
+      "dataset": "220119_F2_run11",
+      "p_values": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "D_p": {
+        "2": 0.02585858585858586,
+        "3": 0.013434343434343434,
+        "4": 0.01101010101010101,
+        "5": 0.01090909090909091,
+        "6": 0.011515151515151515,
+        "7": 0.012222222222222223
+      },
+      "selected": {
+        "absolute": null,
+        "relative": 3,
+        "bootstrap_band": null
+      },
+      "warnings": [
+        "largest instability at first transition (p=2)",
+        "no stable depth found with epsilon=0.01",
+        "no depth within bootstrap band at confidence=0.95"
+      ]
+    },
+    {
+      "fish": "fish-3",
+      "method": "c-GC",
+      "dataset": "220127_F4_run2",
+      "p_values": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "D_p": {
+        "2": 0.03368370759675107,
+        "3": 0.019111323459149548,
+        "4": 0.014691829909221214,
+        "5": 0.015169612995699952,
+        "6": 0.011586239847109412,
+        "7": 0.013377926421404682
+      },
+      "selected": {
+        "absolute": null,
+        "relative": 3,
+        "bootstrap_band": null
+      },
+      "warnings": [
+        "largest instability at first transition (p=2)",
+        "no stable depth found with epsilon=0.01",
+        "no depth within bootstrap band at confidence=0.95"
+      ]
+    },
+    {
+      "fish": "fish-1",
+      "method": "c-GC",
+      "dataset": "220210_F1_run6",
+      "p_values": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "D_p": {
+        "2": 0.05688729874776386,
+        "3": 0.023673225998807394,
+        "4": 0.018246869409660107,
+        "5": 0.0172927847346452,
+        "6": 0.018962432915921288,
+        "7": 0.017889087656529516
+      },
+      "selected": {
+        "absolute": null,
+        "relative": 3,
+        "bootstrap_band": null
+      },
+      "warnings": [
+        "largest instability at first transition (p=2)",
+        "no stable depth found with epsilon=0.01",
+        "no depth within bootstrap band at confidence=0.95"
+      ]
+    },
+    {
+      "fish": "fish-2",
+      "method": "c-GC",
+      "dataset": "220210_F2_run5",
+      "p_values": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "D_p": {
+        "2": 0.028381374722838137,
+        "3": 0.013747228381374724,
+        "4": 0.012158167036215816,
+        "5": 0.013155949741315596,
+        "6": 0.013340724316334072,
+        "7": 0.014634146341463415
+      },
+      "selected": {
+        "absolute": null,
+        "relative": 3,
+        "bootstrap_band": null
+      },
+      "warnings": [
+        "largest instability at first transition (p=2)",
+        "no stable depth found with epsilon=0.01",
+        "no depth within bootstrap band at confidence=0.95"
+      ]
+    },
+    {
+      "fish": "fish-2",
+      "method": "c-GC-star",
+      "dataset": "220119_F2_run11",
+      "p_values": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "D_p": {
+        "2": 0.026262626262626262,
+        "3": 0.013838383838383839,
+        "4": 0.011515151515151515,
+        "5": 0.012121212121212121,
+        "6": 0.01202020202020202,
+        "7": 0.012626262626262626
+      },
+      "selected": {
+        "absolute": null,
+        "relative": 3,
+        "bootstrap_band": null
+      },
+      "warnings": [
+        "largest instability at first transition (p=2)",
+        "no stable depth found with epsilon=0.01",
+        "no depth within bootstrap band at confidence=0.95"
+      ]
+    },
+    {
+      "fish": "fish-3",
+      "method": "c-GC-star",
+      "dataset": "220127_F4_run2",
+      "p_values": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "D_p": {
+        "2": 0.03511705685618729,
+        "3": 0.019350215002388916,
+        "4": 0.016005733397037744,
+        "5": 0.016483516483516484,
+        "6": 0.012900143334925944,
+        "7": 0.013616817964644052
+      },
+      "selected": {
+        "absolute": null,
+        "relative": 3,
+        "bootstrap_band": null
+      },
+      "warnings": [
+        "largest instability at first transition (p=2)",
+        "no stable depth found with epsilon=0.01",
+        "no depth within bootstrap band at confidence=0.95"
+      ]
+    },
+    {
+      "fish": "fish-1",
+      "method": "c-GC-star",
+      "dataset": "220210_F1_run6",
+      "p_values": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "D_p": {
+        "2": 0.05706618962432916,
+        "3": 0.024806201550387597,
+        "4": 0.018783542039355994,
+        "5": 0.018067978533094813,
+        "6": 0.019499105545617172,
+        "7": 0.018008348240906382
+      },
+      "selected": {
+        "absolute": null,
+        "relative": 3,
+        "bootstrap_band": null
+      },
+      "warnings": [
+        "largest instability at first transition (p=2)",
+        "no stable depth found with epsilon=0.01",
+        "no depth within bootstrap band at confidence=0.95"
+      ]
+    },
+    {
+      "fish": "fish-2",
+      "method": "c-GC-star",
+      "dataset": "220210_F2_run5",
+      "p_values": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "D_p": {
+        "2": 0.028677014042867703,
+        "3": 0.014227642276422764,
+        "4": 0.012712490761271249,
+        "5": 0.013673318551367332,
+        "6": 0.013784183296378419,
+        "7": 0.01492978566149298
+      },
+      "selected": {
+        "absolute": null,
+        "relative": 3,
+        "bootstrap_band": null
+      },
+      "warnings": [
+        "largest instability at first transition (p=2)",
+        "no stable depth found with epsilon=0.01",
+        "no depth within bootstrap band at confidence=0.95"
+      ]
+    }
+  ]
+}
