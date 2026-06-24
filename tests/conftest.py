@@ -65,7 +65,13 @@ def synthetic_data_with_confounder(seed_fix):
 
 @pytest.fixture
 def simple_adjacency_dict():
-    """Fixture providing a simple adjacency matrix dictionary across depths."""
+    """Fixture providing a simple adjacency matrix dictionary across depths.
+
+    Edge patterns (for test assertions):
+    - Edge (0,1): appears at depths 0,1 then disappears at 2 (n_depths_present=2, n_deletions=1)
+    - Edge (1,0): appears at depths 1,2 (n_depths_present=2, n_additions=1)
+    - Other edges have various patterns for testing additions/deletions
+    """
     # Simulate outputs from markov-exp: {p_value: adjacency_matrix}
     return {
         0: np.array([[0, 1, 0, 0, 0],

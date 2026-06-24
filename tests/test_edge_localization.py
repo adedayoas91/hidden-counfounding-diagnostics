@@ -64,10 +64,10 @@ class TestComputeEdgeInstabilityMetrics:
             method="test_method"
         )
 
-        # Edge (0, 1) appears at depths 0, 1, 2
+        # Edge (0, 1) appears at depths 0, 1 (fixture has it disappear at depth 2)
         edge_01 = df[(df["source"] == 0) & (df["target"] == 1)]
         assert len(edge_01) == 1, "Should have one row for edge (0, 1)"
-        assert edge_01.iloc[0]["n_depths_present"] == 3, "Edge (0, 1) should appear at 3 depths"
+        assert edge_01.iloc[0]["n_depths_present"] == 2, "Edge (0, 1) should appear at 2 depths"
 
     def test_edge_deletion_counting(self, simple_adjacency_dict):
         """Should correctly count edge deletions between depths."""
