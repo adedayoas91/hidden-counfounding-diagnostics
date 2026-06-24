@@ -10,17 +10,16 @@ Main function:
 
 from __future__ import annotations
 
-from typing import Optional, Dict
+from typing import Optional, Dict, Sequence
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 
 def compute_edge_instability_metrics(
     adj_dict: Dict[int, np.ndarray],
     recording: str,
     method: str,
-    bootstrap_adj_dict: Optional[Dict[int, np.ndarray]] = None,
+    bootstrap_adj_dict: Optional[Dict[int, np.ndarray] | Sequence[Dict[int, np.ndarray]]] = None,
 ) -> pd.DataFrame:
     """Compute edgewise instability metrics across conditioning depths.
 
@@ -40,9 +39,10 @@ def compute_edge_instability_metrics(
         Recording identifier (e.g., 'fish_001').
     method : str
         Method name (e.g., 'c-GC').
-    bootstrap_adj_dict : Optional[Dict[int, np.ndarray]]
-        Optional dictionary of null-model adjacency matrices for bootstrap
-        calibration. If provided, null_frequency, p_value, and q_value are computed.
+    bootstrap_adj_dict : Optional[Dict[int, np.ndarray] | Sequence[Dict[int, np.ndarray]]]
+        Optional bootstrap null adjacency output. Pass a sequence of replicate
+        dictionaries, each mapping depth to adjacency matrix. A single dict is
+        still accepted for backward compatibility and is treated as one replicate.
 
     Returns
     -------
@@ -199,7 +199,7 @@ def compute_edge_instability_metrics(
 def _compute_bootstrap_metrics(
     df: pd.DataFrame,
     adj_dict: Dict[int, np.ndarray],
-    bootstrap_adj_dict: Dict[int, np.ndarray],
+    bootstrap_adj_dict: Dict[int, np.ndarray] | Sequence[Dict[int, np.ndarray]],
     depths: list,
 ) -> pd.DataFrame:
     """Compute bootstrap-based null frequency and FDR-corrected p-values.
@@ -210,8 +210,9 @@ def _compute_bootstrap_metrics(
         Edge metrics DataFrame from compute_edge_instability_metrics.
     adj_dict : Dict[int, np.ndarray]
         Observed adjacency matrices.
-    bootstrap_adj_dict : Dict[int, np.ndarray]
-        Bootstrap null adjacency matrices.
+    bootstrap_adj_dict : Dict[int, np.ndarray] | Sequence[Dict[int, np.ndarray]]
+        Bootstrap null adjacency matrices. The preferred form is one dictionary
+        per bootstrap replicate.
     depths : list
         Sorted list of conditioning depths.
 
@@ -220,67 +221,27 @@ def _compute_bootstrap_metrics(
     pd.DataFrame
         Updated DataFrame with null_frequency, p_value, q_value filled in.
     """
-    n_depths = len(depths)
+    bootstrap_replicates = _coerce_bootstrap_replicates(bootstrap_adj_dict)
 
-    # Compute null instabilities for all edges in both observed and null
-    all_null_edges = set()
-    null_instabilities = {}
-
-    for bootstrap_depth_dict in [bootstrap_adj_dict]:
-        if not bootstrap_depth_dict:
-            continue
-
-        null_depths = sorted(bootstrap_depth_dict.keys())
-
-        # Collect all edges in null model
-        for bootstrap_adj in bootstrap_depth_dict.values():
-            rows, cols = np.where(bootstrap_adj == 1)
-            for src, tgt in zip(rows, cols):
-                if src != tgt:
-                    all_null_edges.add((int(src), int(tgt)))
-
-        # Compute instability for each null edge
-        for source, target in all_null_edges:
-            appearances = []
-            for depth in null_depths:
-                is_present = bool(bootstrap_depth_dict[depth][source, target] == 1)
-                appearances.append(is_present)
-
-            n_dels = 0
-            n_adds = 0
-            for i in range(1, len(appearances)):
-                if appearances[i - 1] and not appearances[i]:
-                    n_dels += 1
-                elif not appearances[i - 1] and appearances[i]:
-                    n_adds += 1
-
-            if len(null_depths) > 1:
-                null_inst = (n_dels + n_adds) / (len(null_depths) - 1)
-            else:
-                null_inst = 0.0
-
-            null_instabilities[(source, target)] = null_inst
-
-    # Compute p-values: fraction of null edges with instability >= observed
     p_values = []
     null_freqs = []
 
     for _, row in df.iterrows():
         source, target = int(row["source"]), int(row["target"])
         obs_instability = row["instability_frequency"]
+        null_instabilities = [
+            _edge_instability_for_replicate(replicate, depths, source, target)
+            for replicate in bootstrap_replicates
+        ]
 
-        # Null frequency: has this edge in null?
-        null_freq = 1.0 if (source, target) in null_instabilities else 0.0
+        null_freq = float(np.mean(null_instabilities)) if null_instabilities else np.nan
         null_freqs.append(null_freq)
 
-        # P-value: fraction of null edges with instability >= observed
         if null_instabilities:
-            n_null_with_higher = sum(
-                1 for inst in null_instabilities.values() if inst >= obs_instability
-            )
-            p_val = n_null_with_higher / len(null_instabilities)
+            n_null_with_higher = sum(inst >= obs_instability for inst in null_instabilities)
+            p_val = (1 + n_null_with_higher) / (len(null_instabilities) + 1)
         else:
-            p_val = 1.0  # No null edges -> high p-value
+            p_val = np.nan
 
         p_values.append(p_val)
 
@@ -301,6 +262,38 @@ def _compute_bootstrap_metrics(
         df["q_value"] = np.nan
 
     return df
+
+
+def _coerce_bootstrap_replicates(
+    bootstrap_adj_dict: Dict[int, np.ndarray] | Sequence[Dict[int, np.ndarray]]
+) -> list[Dict[int, np.ndarray]]:
+    if isinstance(bootstrap_adj_dict, dict):
+        return [bootstrap_adj_dict] if bootstrap_adj_dict else []
+    return [replicate for replicate in bootstrap_adj_dict if replicate]
+
+
+def _edge_instability_for_replicate(
+    replicate: Dict[int, np.ndarray],
+    depths: list,
+    source: int,
+    target: int,
+) -> float:
+    appearances = []
+    for depth in depths:
+        adj = replicate.get(depth)
+        if adj is None:
+            appearances.append(False)
+            continue
+        if source >= adj.shape[0] or target >= adj.shape[1]:
+            appearances.append(False)
+            continue
+        appearances.append(bool(adj[source, target] == 1))
+
+    changes = sum(
+        appearances[index - 1] != appearances[index]
+        for index in range(1, len(appearances))
+    )
+    return float(changes / (len(appearances) - 1)) if len(appearances) > 1 else 0.0
 
 
 def _benjamini_hochberg_fdr(p_values: np.ndarray, alpha: float = 0.05) -> tuple[float | np.floating, np.ndarray]:

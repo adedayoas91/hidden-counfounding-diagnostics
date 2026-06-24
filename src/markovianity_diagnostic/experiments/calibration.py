@@ -15,6 +15,58 @@ from typing import Dict, Optional
 logger = logging.getLogger(__name__)
 
 
+def _validate_var_input(X: np.ndarray, p0: int) -> tuple[int, int]:
+    if X.ndim != 2:
+        raise ValueError(f"X must be 2D, got shape {X.shape}")
+
+    T, d = X.shape
+    if p0 < 1:
+        raise ValueError(f"p0={p0} must be >= 1")
+    if p0 >= T:
+        raise ValueError(f"p0={p0} must be < T={T}")
+    return T, d
+
+
+def _var_design_matrix(X: np.ndarray, p0: int) -> tuple[np.ndarray, np.ndarray]:
+    """Return targets and stacked lag predictors for a VAR(p0) fit."""
+    T, _ = X.shape
+    Y = X[p0:, :]
+    Z = np.asarray([
+        np.concatenate([X[t - lag, :] for lag in range(1, p0 + 1)])
+        for t in range(p0, T)
+    ])
+    return Y, Z
+
+
+def _fit_var_coefficients(X: np.ndarray, p0: int) -> tuple[np.ndarray, np.ndarray]:
+    Y, Z = _var_design_matrix(X, p0)
+    coefficients, *_ = np.linalg.lstsq(Z, Y, rcond=None)
+    residuals = Y - Z @ coefficients
+    return coefficients, residuals
+
+
+def _covariance_matrix(residuals: np.ndarray) -> np.ndarray:
+    covariance = np.cov(residuals.T, ddof=1)
+    if covariance.ndim == 0:
+        covariance = np.array([[covariance]])
+    elif covariance.ndim == 1:
+        covariance = np.diag(covariance)
+    return covariance
+
+
+def _initial_conditions(X_fit: np.ndarray, T: int, p0: int) -> np.ndarray:
+    d = X_fit.shape[1]
+    X_sample = np.zeros((T, d))
+    n_init = min(T, p0)
+    X_sample[:n_init, :] = X_fit[:n_init, :]
+    return X_sample
+
+
+def _predict_next(history: np.ndarray, coefficients: np.ndarray, p0: int) -> np.ndarray:
+    lag_vector = np.concatenate([history[-lag, :] for lag in range(1, p0 + 1)])
+    return lag_vector @ coefficients
+
+
 class NullModel(ABC):
     """Abstract base class for null hypothesis models.
 
@@ -106,41 +158,13 @@ class VARNullModel(NullModel):
         Raises:
             ValueError: If X is invalid or p0 >= T.
         """
-        # Validate input
-        if X.ndim != 2:
-            raise ValueError(f"X must be 2D, got shape {X.shape}")
-        
-        T, d = X.shape
-        if p0 >= T:
-            raise ValueError(f"p0={p0} must be < T={T}")
+        _validate_var_input(X, p0)
         
         self.p0 = p0
         self._X_fit = X.copy()
         
-        # Build design matrix for VAR: stack X[p0:] as target, X[p0-1:-1] as predictor
-        # For VAR(p0): X_t = A @ X_{t-1} + epsilon_t
-        Y = X[p0:, :].T  # Shape: (d, T-p0)
-        Z = X[p0-1:-1, :].T  # Shape: (d, T-p0)
-        
-        # OLS: A = Y @ Z^T @ (Z @ Z^T)^{-1}
-        ZZt = Z @ Z.T  # Shape: (d, d)
-        YZt = Y @ Z.T  # Shape: (d, d)
-        
-        try:
-            self._A = YZt @ np.linalg.inv(ZZt)
-        except np.linalg.LinAlgError:
-            # Use pseudo-inverse if singular
-            self._A = YZt @ np.linalg.pinv(ZZt)
-        
-        # Compute residuals and covariance
-        residuals = X[p0:, :] - X[p0-1:-1, :] @ self._A.T
-        self._cov = np.cov(residuals.T, ddof=1)
-        
-        # Ensure covariance is 2D
-        if self._cov.ndim == 0:
-            self._cov = np.array([[self._cov]])
-        elif self._cov.ndim == 1:
-            self._cov = np.diag(self._cov)
+        self._A, residuals = _fit_var_coefficients(X, p0)
+        self._cov = _covariance_matrix(residuals)
         
         self._fitted = True
         return self
@@ -161,17 +185,14 @@ class VARNullModel(NullModel):
         if not self._fitted:
             raise ValueError("Model must be fitted before sampling")
         
-        np.random.seed(seed)
+        rng = np.random.default_rng(seed)
         d = self._X_fit.shape[1]
         
-        # Initialize with random starting point
-        X_sample = np.zeros((T, d))
-        X_sample[0, :] = np.random.randn(d)
+        X_sample = _initial_conditions(self._X_fit, T, self.p0)
         
-        # Generate trajectory
-        for t in range(1, T):
-            noise = np.random.multivariate_normal(np.zeros(d), self._cov)
-            X_sample[t, :] = X_sample[t-1, :] @ self._A.T + noise
+        for t in range(self.p0, T):
+            noise = rng.multivariate_normal(np.zeros(d), self._cov)
+            X_sample[t, :] = _predict_next(X_sample[:t, :], self._A, self.p0) + noise
         
         return X_sample
 
@@ -217,31 +238,12 @@ class ResidualBootstrapNull(NullModel):
         Returns:
             self
         """
-        if X.ndim != 2:
-            raise ValueError(f"X must be 2D, got shape {X.shape}")
-        
-        T, d = X.shape
-        if p0 >= T:
-            raise ValueError(f"p0={p0} must be < T={T}")
+        _validate_var_input(X, p0)
         
         self.p0 = p0
         self._X_fit = X.copy()
         
-        # Build design matrix for VAR
-        Y = X[p0:, :].T  # Shape: (d, T-p0)
-        Z = X[p0-1:-1, :].T  # Shape: (d, T-p0)
-        
-        # OLS: A = Y @ Z^T @ (Z @ Z^T)^{-1}
-        ZZt = Z @ Z.T
-        YZt = Y @ Z.T
-        
-        try:
-            self._A = YZt @ np.linalg.inv(ZZt)
-        except np.linalg.LinAlgError:
-            self._A = YZt @ np.linalg.pinv(ZZt)
-        
-        # Compute and store residuals
-        self._residuals = X[p0:, :] - X[p0-1:-1, :] @ self._A.T
+        self._A, self._residuals = _fit_var_coefficients(X, p0)
         
         self._fitted = True
         return self
@@ -259,20 +261,16 @@ class ResidualBootstrapNull(NullModel):
         if not self._fitted:
             raise ValueError("Model must be fitted before sampling")
         
-        np.random.seed(seed)
+        rng = np.random.default_rng(seed)
         d = self._X_fit.shape[1]
         n_residuals = self._residuals.shape[0]
         
-        # Initialize with random starting point
-        X_sample = np.zeros((T, d))
-        X_sample[0, :] = np.random.randn(d)
+        X_sample = _initial_conditions(self._X_fit, T, self.p0)
         
-        # Generate trajectory by resampling residuals
-        for t in range(1, T):
-            # Resample one residual with replacement
-            idx = np.random.randint(0, n_residuals)
+        for t in range(self.p0, T):
+            idx = rng.integers(0, n_residuals)
             noise = self._residuals[idx, :]
-            X_sample[t, :] = X_sample[t-1, :] @ self._A.T + noise
+            X_sample[t, :] = _predict_next(X_sample[:t, :], self._A, self.p0) + noise
         
         return X_sample
 
@@ -320,31 +318,12 @@ class MovingBlockBootstrapNull(NullModel):
         Returns:
             self
         """
-        if X.ndim != 2:
-            raise ValueError(f"X must be 2D, got shape {X.shape}")
-        
-        T, d = X.shape
-        if p0 >= T:
-            raise ValueError(f"p0={p0} must be < T={T}")
+        _validate_var_input(X, p0)
         
         self.p0 = p0
         self._X_fit = X.copy()
         
-        # Build design matrix for VAR
-        Y = X[p0:, :].T  # Shape: (d, T-p0)
-        Z = X[p0-1:-1, :].T  # Shape: (d, T-p0)
-        
-        # OLS: A = Y @ Z^T @ (Z @ Z^T)^{-1}
-        ZZt = Z @ Z.T
-        YZt = Y @ Z.T
-        
-        try:
-            self._A = YZt @ np.linalg.inv(ZZt)
-        except np.linalg.LinAlgError:
-            self._A = YZt @ np.linalg.pinv(ZZt)
-        
-        # Compute and store residuals
-        self._residuals = X[p0:, :] - X[p0-1:-1, :] @ self._A.T
+        self._A, self._residuals = _fit_var_coefficients(X, p0)
         
         self._fitted = True
         return self
@@ -362,7 +341,7 @@ class MovingBlockBootstrapNull(NullModel):
         if not self._fitted:
             raise ValueError("Model must be fitted before sampling")
         
-        np.random.seed(seed)
+        rng = np.random.default_rng(seed)
         d = self._X_fit.shape[1]
         n_residuals = self._residuals.shape[0]
         
@@ -370,14 +349,12 @@ class MovingBlockBootstrapNull(NullModel):
         n_blocks = max(1, n_residuals - self.block_length + 1)
         
         # Initialize with random starting point
-        X_sample = np.zeros((T, d))
-        X_sample[0, :] = np.random.randn(d)
+        X_sample = _initial_conditions(self._X_fit, T, self.p0)
         
         # Generate trajectory by resampling blocks
-        t = 1
+        t = self.p0
         while t < T:
-            # Resample one block start position with replacement
-            block_start = np.random.randint(0, n_blocks)
+            block_start = rng.integers(0, n_blocks)
             block_end = min(block_start + self.block_length, n_residuals)
             block_residuals = self._residuals[block_start:block_end, :]
             
@@ -385,7 +362,7 @@ class MovingBlockBootstrapNull(NullModel):
             for offset, residual in enumerate(block_residuals):
                 if t >= T:
                     break
-                X_sample[t, :] = X_sample[t-1, :] @ self._A.T + residual
+                X_sample[t, :] = _predict_next(X_sample[:t, :], self._A, self.p0) + residual
                 t += 1
         
         return X_sample

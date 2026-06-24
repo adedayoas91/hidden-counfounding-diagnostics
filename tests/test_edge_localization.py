@@ -349,6 +349,39 @@ class TestComputeEdgeInstabilityMetricsWithBootstrap:
         # q_value should be >= p_value (conservative correction)
         assert (df["q_value"] >= df["p_value"]).all(), "q_value should be >= p_value"
 
+    def test_bootstrap_replicates_are_used_per_edge(self):
+        """P-values should compare each edge against bootstrap replicate frequencies."""
+        from markovianity_diagnostic.experiments.edge_localization import (
+            compute_edge_instability_metrics
+        )
+
+        obs = {
+            0: np.array([[0, 1], [0, 0]]),
+            1: np.array([[0, 1], [0, 0]]),
+            2: np.array([[0, 0], [0, 0]]),
+        }
+        stable_null = {
+            0: np.array([[0, 1], [0, 0]]),
+            1: np.array([[0, 1], [0, 0]]),
+            2: np.array([[0, 1], [0, 0]]),
+        }
+        unstable_null = {
+            0: np.array([[0, 1], [0, 0]]),
+            1: np.array([[0, 1], [0, 0]]),
+            2: np.array([[0, 0], [0, 0]]),
+        }
+
+        df = compute_edge_instability_metrics(
+            adj_dict=obs,
+            recording="test_recording",
+            method="test_method",
+            bootstrap_adj_dict=[stable_null, unstable_null],
+        )
+        edge = df[(df["source"] == 0) & (df["target"] == 1)].iloc[0]
+
+        assert edge["null_frequency"] == 0.25
+        assert edge["p_value"] == pytest.approx(2 / 3)
+
 
 class TestEdgeLocalizationEdgeCases:
     """Test edge cases and error handling."""

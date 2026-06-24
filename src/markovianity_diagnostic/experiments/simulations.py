@@ -157,6 +157,7 @@ def scenario_latent_common_driver(
     *,
     T: int = 2000,
     d: int = 10,
+    edge_prob: float = 0.10,
     conf_strength: float = 0.35,
     latent_ar: float = 0.80,
     noise_scale: float = 1.0,
@@ -165,7 +166,7 @@ def scenario_latent_common_driver(
     """Observed order-1 system perturbed by a latent AR(1) common driver."""
 
     rng = np.random.default_rng(seed)
-    a1 = scale_to_stability(make_sparse_matrix(d, edge_prob=0.10, seed=seed + 1) * 0.50)
+    a1 = scale_to_stability(make_sparse_matrix(d, edge_prob=edge_prob, seed=seed + 1) * 0.50)
 
     total = T + 400
     latent = np.zeros(total, dtype=float)
@@ -186,6 +187,7 @@ def scenario_latent_common_driver(
             "scenario": "latent_common_driver",
             "latent": True,
             "true_order": 1,
+            "edge_prob": edge_prob,
             "conf_strength": conf_strength,
             "latent_ar": latent_ar,
             "noise_scale": noise_scale,

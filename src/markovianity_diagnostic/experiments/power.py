@@ -19,7 +19,7 @@ import logging
 import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 
@@ -191,6 +191,7 @@ class PowerAnalyzer:
         p_values: list[int] | None = None,
         verbose: bool = False,
         seed: int | None = None,
+        method_fn: Callable[[np.ndarray, list[int]], dict[int, np.ndarray]] | None = None,
     ):
         """Initialize power analyzer."""
         self.grid = grid
@@ -199,6 +200,7 @@ class PowerAnalyzer:
         self.p_values = p_values or [1, 2, 3, 4, 5, 6]
         self.verbose = verbose
         self.seed = seed
+        self.method_fn = method_fn
         self._scenario_fn = self._get_scenario_fn()
 
     def _get_scenario_fn(self):
@@ -216,7 +218,7 @@ class PowerAnalyzer:
             Results for each (grid_point, repeat) combination.
         """
         results = []
-        method_fn = METHODS[self.method]
+        method_fn = self.method_fn or METHODS[self.method]
         total = self.grid.total_combinations() * self.repeats
         completed = 0
 
@@ -239,6 +241,7 @@ class PowerAnalyzer:
                                     scenario = self._scenario_fn(
                                         T=T,
                                         d=d,
+                                        edge_prob=edge_density,
                                         conf_strength=conf_strength,
                                         latent_ar=latent_ar,
                                         noise_scale=noise_scale,

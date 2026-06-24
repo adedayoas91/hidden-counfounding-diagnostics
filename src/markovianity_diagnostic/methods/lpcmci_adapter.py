@@ -12,10 +12,12 @@ from typing import Any
 import numpy as np
 
 try:
-    from tigramite.pcmci import PCMCI
+    from tigramite.data_processing import DataFrame
     from tigramite.independence_tests.parcorr import ParCorr
+    from tigramite.lpcmci import LPCMCI
 except ImportError:
-    PCMCI = None
+    DataFrame = None
+    LPCMCI = None
     ParCorr = None
 
 
@@ -87,40 +89,32 @@ class LPCMCIAdapter:
         for p in p_values_to_test:
             start_time = time.time()
 
-            # Prepare data with temporal structure for LPCMCI
-            # LPCMCI expects (d, T) format
-            data = X.T
-
             try:
-                # Initialize LPCMCI with ParCorr test (default)
-                if PCMCI is None or ParCorr is None:
+                if DataFrame is None or LPCMCI is None or ParCorr is None:
                     raise ImportError(
                         "Tigramite not available. Install via: pip install tigramite"
                     )
 
+                dataframe = DataFrame(X)
                 cond_ind_test = ParCorr()
-                pcmci = PCMCI(
-                    data,
-                    cond_ind_test,
+                lpcmci = LPCMCI(
+                    dataframe=dataframe,
+                    cond_ind_test=cond_ind_test,
                     verbosity=0,
                 )
 
-                # Run PCMCI with maximum lag = p (depth as temporal lag)
-                # This checks conditional independence relationships up to lag p
-                pag = pcmci.run_pcmci(
+                # Run LPCMCI with maximum lag = p (depth as temporal lag).
+                result = lpcmci.run_lpcmci(
                     tau_min=self.tau_min,
                     tau_max=min(p, self.tau_max),
                     pc_alpha=self.pc_alpha,
                 )
+                pag = result.get("graph") if isinstance(result, dict) else result
 
                 # Extract adjacency from PAG
-                # PAG has shape (d, d, lag+1) where lag is temporal dimension
-                # Collapse to contemporaneous + lagged relationships
                 if pag is not None:
-                    # Get contemporaneous relationships (lag 0)
-                    adj_contemp = (pag[:, :, 0] != 0).astype(int)
+                    adj_contemp = self._collapse_pag_to_adjacency(pag)
                 else:
-                    # Fallback: empty adjacency if LPCMCI fails
                     adj_contemp = np.zeros((X.shape[1], X.shape[1]), dtype=int)
 
                 # Ensure diagonal is zero
@@ -131,7 +125,7 @@ class LPCMCIAdapter:
                 output[p] = {
                     "adjacency": adj_contemp,
                     "edge_marks": self._extract_edge_marks(pag, p),
-                    "raw_pag": pag,
+                    "raw_pag": result,
                     "metadata": {
                         "algorithm": "LPCMCI",
                         "params": {
@@ -194,31 +188,32 @@ class LPCMCIAdapter:
             return marks
 
         try:
-            # PAG shape is (d, d, lag+1)
-            # Values encode edge types:
-            # 0: no edge
-            # 1: arrow
-            # 2: circle
-            # 3: tail
-            # Extract contemporaneous edges (lag 0)
-            d = pag.shape[0]
+            graph = pag.get("graph") if isinstance(pag, dict) else pag
+            d = graph.shape[0]
             for i in range(d):
                 for j in range(d):
                     if i == j:
                         continue
-                    edge_type = pag[i, j, 0]
-                    if edge_type == 0:
-                        marks[(i, j)] = None
-                    elif edge_type == 1:
-                        marks[(i, j)] = "arrow"
-                    elif edge_type == 2:
-                        marks[(i, j)] = "circle"
-                    elif edge_type == 3:
-                        marks[(i, j)] = "tail"
-                    else:
-                        marks[(i, j)] = "uncertain"
+                    labels = [
+                        str(label)
+                        for label in np.ravel(graph[i, j, :])
+                        if str(label).strip()
+                    ]
+                    if labels:
+                        marks[(i, j)] = "|".join(sorted(set(labels)))
         except (AttributeError, TypeError, IndexError):
-            # If PAG structure is unexpected, return empty marks
             pass
 
         return marks
+
+    @staticmethod
+    def _collapse_pag_to_adjacency(pag: Any) -> np.ndarray:
+        """Collapse an LPCMCI graph over lags to a compact binary adjacency."""
+        graph = pag.get("graph") if isinstance(pag, dict) else pag
+        adjacency = np.zeros(graph.shape[:2], dtype=int)
+        for i in range(graph.shape[0]):
+            for j in range(graph.shape[1]):
+                if i == j:
+                    continue
+                adjacency[i, j] = int(any(str(label).strip() for label in graph[i, j, :]))
+        return adjacency

@@ -1,14 +1,29 @@
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
+.DS_Store
 
 data/
 others/
+nature_methods/
 outputs/twins_notebook/
+outputs/reporting/
 .notebook_cache/
 .uv-cache/
+.coverage
+.pytest_cache/
 src/markovianity_diagnostic/experiments/.mpl_cache/
 
 # envs
 .venv/
 src/hidden_conf_*/
+
+# local agent and assistant state
+.claude/
+.superpowers/
+AGENTS.md
+agents/
+prompts/
+
+# local prose/report artifacts that should live under others/
+README.md

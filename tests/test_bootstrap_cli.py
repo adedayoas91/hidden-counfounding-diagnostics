@@ -18,6 +18,20 @@ import numpy as np
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def fast_bootstrap_cli_method(monkeypatch):
+    """CLI tests verify IO/schema; avoid production c-GC permutations here."""
+    from markovianity_diagnostic.experiments import bootstrap_runner
+
+    def analyze_fast(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
+        d = X.shape[1]
+        corr = np.abs(np.corrcoef(X, rowvar=False)) > 0.2
+        np.fill_diagonal(corr, 0)
+        return {int(p): corr.astype(int).copy() for p in p_values}
+
+    monkeypatch.setitem(bootstrap_runner.METHODS, "gcstar_cgc", analyze_fast)
+
+
 class TestBootstrapCLIArgumentParsing:
     """Test that CLI arguments are parsed correctly."""
 

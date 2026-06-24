@@ -62,6 +62,42 @@ class TestLPCMCIAdapterFit:
             assert "raw_pag" in output
             assert "metadata" in output
 
+    def test_fit_calls_tigramite_lpcmci_not_pcmci(self, monkeypatch):
+        """Adapter should bind to tigramite.lpcmci.LPCMCI.run_lpcmci."""
+        import markovianity_diagnostic.methods.lpcmci_adapter as module
+
+        calls = {"run_lpcmci": 0}
+
+        class DummyDataFrame:
+            def __init__(self, data):
+                self.data = data
+
+        class DummyParCorr:
+            pass
+
+        class DummyLPCMCI:
+            def __init__(self, dataframe, cond_ind_test, verbosity=0):
+                self.dataframe = dataframe
+                self.cond_ind_test = cond_ind_test
+                self.verbosity = verbosity
+
+            def run_lpcmci(self, **kwargs):
+                calls["run_lpcmci"] += 1
+                graph = np.empty((2, 2, 2), dtype=object)
+                graph[:] = ""
+                graph[0, 1, 1] = "o->"
+                return {"graph": graph, "p_matrix": np.zeros((2, 2, 2))}
+
+        monkeypatch.setattr(module, "DataFrame", DummyDataFrame)
+        monkeypatch.setattr(module, "ParCorr", DummyParCorr)
+        monkeypatch.setattr(module, "LPCMCI", DummyLPCMCI)
+
+        result = LPCMCIAdapter().fit(np.ones((10, 2)), [1])
+
+        assert calls["run_lpcmci"] == 1
+        assert result[1]["adjacency"][0, 1] == 1
+        assert result[1]["metadata"]["algorithm"] == "LPCMCI"
+
 
 class TestLPCMCIAdapterSchema:
     """Test output schema correctness."""

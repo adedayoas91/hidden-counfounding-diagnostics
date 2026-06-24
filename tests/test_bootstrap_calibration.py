@@ -231,6 +231,20 @@ class TestVARNullModelMetadata:
         assert metadata["n_samples"] == T
         assert metadata["n_features"] == d
 
+    def test_var_p0_uses_all_lags(self, synthetic_markov_data):
+        """VAR(p0) coefficients should contain one block per lag."""
+        _, d = synthetic_markov_data.shape
+        model = VARNullModel(p0=3).fit(synthetic_markov_data, p0=3)
+
+        assert model._A.shape == (3 * d, d)
+
+    def test_var_p0_initializes_with_p0_observed_rows(self, synthetic_markov_data):
+        """Sampling should preserve all p0 initial states before recursion."""
+        model = VARNullModel(p0=3).fit(synthetic_markov_data, p0=3)
+        sample = model.sample(T=20, seed=42)
+
+        np.testing.assert_array_equal(sample[:3], synthetic_markov_data[:3])
+
 
 class TestResidualBootstrapNullFit:
     """Test ResidualBootstrapNull.fit() interface."""
@@ -246,11 +260,11 @@ class TestResidualBootstrapNullFit:
 
     def test_residual_bootstrap_fit_stores_var_coefficients(self, synthetic_markov_data):
         """fit() should store VAR coefficients for predictions."""
-        model = ResidualBootstrapNull(p0=1)
-        model.fit(synthetic_markov_data, p0=1)
+        model = ResidualBootstrapNull(p0=2)
+        model.fit(synthetic_markov_data, p0=2)
         
         assert model._A is not None
-        assert model._A.shape == (synthetic_markov_data.shape[1],
+        assert model._A.shape == (2 * synthetic_markov_data.shape[1],
                                   synthetic_markov_data.shape[1])
 
 

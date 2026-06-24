@@ -150,16 +150,23 @@ class GcStar:
             trimmed = np.r_[trimmed, arr[:, start:stop]]
         return trimmed
 
-    def get_conditioning_set(self, data: np.ndarray, i: int, j: int) -> np.ndarray:
+    def get_conditioning_set(self, shifted: np.ndarray, i: int, j: int) -> np.ndarray:
         """Build the c-GC conditioning set for a single directed pair."""
 
-        self.shifted_data = self.shift_data(data.copy())
         source_index = i % self.n_neur
         excluded_history = [
             source_index + lag * self.n_neur for lag in range(i // self.n_neur)
         ]
         excluded = np.r_[np.array(excluded_history, dtype=int), [i, j]]
-        return np.delete(self.shifted_data, excluded, axis=0)
+        return np.delete(shifted, excluded, axis=0)
+
+    @staticmethod
+    def _regression_residual_pair(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        design = z.T
+        targets = np.column_stack([x, y])
+        coef, *_ = np.linalg.lstsq(design, targets, rcond=None)
+        residuals = targets - design @ coef
+        return residuals[:, 0], residuals[:, 1]
 
     def correlation_func(self, data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Compute unconditional dependence and permutation p-values."""
@@ -195,10 +202,9 @@ class GcStar:
                 if self.method == "fcgc":
                     z = np.delete(shifted.copy(), [i, j], axis=0)
                 else:
-                    z = self.get_conditioning_set(data, i, j)
+                    z = self.get_conditioning_set(shifted, i, j)
 
-                x_res = regression_residual(x, z)
-                y_res = regression_residual(y, z)
+                x_res, y_res = self._regression_residual_pair(x, y, z)
                 inv_corr[i, j] = np.abs(np.corrcoef(x_res, y_res)[1, 0])
                 pvals[i, j] = _perm_test_numba(x_res, y_res, self.n_perm)
 

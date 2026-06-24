@@ -18,6 +18,20 @@ from markovianity_diagnostic.experiments.power import (
 )
 
 
+@pytest.fixture(autouse=True)
+def fast_power_method(monkeypatch):
+    """Keep orchestration tests fast; integration tests cover real adapters elsewhere."""
+    from markovianity_diagnostic.experiments import power
+
+    def analyze_fast(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
+        d = X.shape[1]
+        base = np.abs(np.corrcoef(X, rowvar=False)) > 0.15
+        np.fill_diagonal(base, 0)
+        return {int(p): base.astype(int).copy() for p in p_values}
+
+    monkeypatch.setitem(power.METHODS, "gcstar_cgc", analyze_fast)
+
+
 class TestPowerGrid:
     """Test power analysis grid specification."""
 
