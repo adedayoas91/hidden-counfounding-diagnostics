@@ -6,8 +6,13 @@ null distributions.
 """
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+import json
+import logging
 import numpy as np
 from typing import Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class NullModel(ABC):
@@ -396,3 +401,89 @@ class MovingBlockBootstrapNull(NullModel):
             "n_samples": self._X_fit.shape[0] if self._fitted else None,
             "n_features": self._X_fit.shape[1] if self._fitted else None,
         }
+
+
+def _json_serializer(obj):
+    """JSON serializer for numpy and other non-JSON-serializable types."""
+    if hasattr(obj, 'tolist'):
+        return obj.tolist()
+    if isinstance(obj, (np.integer, np.floating)):
+        return float(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+@dataclass(frozen=True)
+class CalibrationResult:
+    """Result of calibration experiment with null distribution and diagnosis.
+    
+    Attributes:
+        observed: Dictionary containing observed test statistics and diagnostics.
+                 Keys: T_obs, D_obs, D_parts_obs, edge_counts (optional)
+        null: Dictionary containing null distribution statistics.
+              Keys: T_boot, D_boot (optional), critical_90, critical_95, critical_99, p_value
+        diagnosis: Dictionary containing diagnostic results.
+                  Keys: reject_global_95, first_exceedance_depth (optional)
+    """
+    observed: Dict
+    null: Dict
+    diagnosis: Dict
+    
+    def to_json(self, path: str) -> None:
+        """Serialize CalibrationResult to JSON file.
+        
+        Args:
+            path: File path where JSON should be written.
+            
+        Raises:
+            IOError: If file cannot be written.
+            TypeError: If data contains non-serializable types.
+        """
+        try:
+            data = {
+                "observed": self.observed,
+                "null": self.null,
+                "diagnosis": self.diagnosis,
+            }
+            with open(path, 'w') as f:
+                json.dump(data, f, indent=2, default=_json_serializer)
+            logger.info(f"Saved CalibrationResult to {path}")
+        except (IOError, TypeError) as e:
+            logger.error(f"Failed to serialize CalibrationResult to {path}: {e}")
+            raise
+    
+    @classmethod
+    def from_json(cls, path: str) -> "CalibrationResult":
+        """Deserialize CalibrationResult from JSON file.
+        
+        Args:
+            path: File path to load JSON from.
+            
+        Returns:
+            CalibrationResult instance.
+            
+        Raises:
+            FileNotFoundError: If file does not exist.
+            json.JSONDecodeError: If JSON is malformed.
+            KeyError: If required keys are missing.
+            ValueError: If schema validation fails.
+        """
+        try:
+            with open(path, 'r') as f:
+                data = json.load(f)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"CalibrationResult file not found: {path}") from e
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in CalibrationResult file {path}: {e}") from e
+        
+        # Validate required keys
+        required_keys = {"observed", "null", "diagnosis"}
+        if not required_keys.issubset(set(data.keys())):
+            missing = required_keys - set(data.keys())
+            raise ValueError(f"CalibrationResult JSON missing required keys: {missing}")
+        
+        logger.info(f"Loaded CalibrationResult from {path}")
+        return cls(
+            observed=data["observed"],
+            null=data["null"],
+            diagnosis=data["diagnosis"],
+        )

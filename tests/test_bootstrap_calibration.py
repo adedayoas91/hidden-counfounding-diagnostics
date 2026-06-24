@@ -389,3 +389,163 @@ class TestAllModelsConsistency:
         assert "n_samples" in metadata
         assert "n_features" in metadata
         assert metadata["fitted"] is True
+
+
+class TestCalibrationResult:
+    """Test suite for CalibrationResult dataclass."""
+
+    def test_calibration_result_dataclass_creation(self):
+        """CalibrationResult should be creatable with required fields."""
+        from markovianity_diagnostic.experiments.calibration import CalibrationResult
+        
+        result = CalibrationResult(
+            observed={"T_obs": 2.5, "D_obs": 0.8},
+            null={"T_boot": [1.0, 2.0, 3.0], "critical_90": 1.5, "critical_95": 2.0, "critical_99": 2.8, "p_value": 0.1},
+            diagnosis={"reject_global_95": False, "first_exceedance_depth": 2}
+        )
+        
+        assert result.observed == {"T_obs": 2.5, "D_obs": 0.8}
+        assert result.null["T_boot"] == [1.0, 2.0, 3.0]
+        assert result.diagnosis["reject_global_95"] is False
+
+    def test_critical_values_ordered(self):
+        """Critical values should satisfy 90 < 95 < 99."""
+        from markovianity_diagnostic.experiments.calibration import CalibrationResult
+        
+        result = CalibrationResult(
+            observed={"T_obs": 2.5},
+            null={
+                "T_boot": [1.0, 2.0, 3.0],
+                "critical_90": 1.5,
+                "critical_95": 2.0,
+                "critical_99": 2.8,
+                "p_value": 0.15
+            },
+            diagnosis={}
+        )
+        
+        assert result.null["critical_90"] < result.null["critical_95"]
+        assert result.null["critical_95"] < result.null["critical_99"]
+
+    def test_p_value_in_range(self):
+        """p_value should be in [0, 1]."""
+        from markovianity_diagnostic.experiments.calibration import CalibrationResult
+        
+        result = CalibrationResult(
+            observed={"T_obs": 2.5},
+            null={
+                "T_boot": [1.0, 2.0, 3.0],
+                "critical_90": 1.5,
+                "critical_95": 2.0,
+                "critical_99": 2.8,
+                "p_value": 0.42
+            },
+            diagnosis={}
+        )
+        
+        assert 0 <= result.null["p_value"] <= 1
+
+    def test_calibration_result_to_json(self, tmp_path):
+        """CalibrationResult.to_json() should produce valid JSON file."""
+        from markovianity_diagnostic.experiments.calibration import CalibrationResult
+        import json
+        
+        result = CalibrationResult(
+            observed={"T_obs": 2.5, "D_obs": 0.8, "D_parts_obs": [0.2, 0.6], "edge_counts": 5},
+            null={
+                "T_boot": [1.0, 2.0, 3.0],
+                "D_boot": [0.5, 0.7, 0.9],
+                "critical_90": 1.5,
+                "critical_95": 2.0,
+                "critical_99": 2.8,
+                "p_value": 0.15
+            },
+            diagnosis={"reject_global_95": False, "first_exceedance_depth": 2}
+        )
+        
+        output_path = tmp_path / "result.json"
+        result.to_json(str(output_path))
+        
+        assert output_path.exists()
+        
+        # Verify JSON is valid and readable
+        with open(output_path) as f:
+            data = json.load(f)
+        
+        assert "observed" in data
+        assert "null" in data
+        assert "diagnosis" in data
+
+    def test_calibration_result_from_json(self, tmp_path):
+        """CalibrationResult.from_json() should load from JSON file."""
+        from markovianity_diagnostic.experiments.calibration import CalibrationResult
+        import json
+        
+        # Create a JSON file
+        test_data = {
+            "observed": {"T_obs": 2.5, "D_obs": 0.8},
+            "null": {
+                "T_boot": [1.0, 2.0, 3.0],
+                "critical_90": 1.5,
+                "critical_95": 2.0,
+                "critical_99": 2.8,
+                "p_value": 0.15
+            },
+            "diagnosis": {"reject_global_95": False, "first_exceedance_depth": 2}
+        }
+        
+        output_path = tmp_path / "result.json"
+        with open(output_path, 'w') as f:
+            json.dump(test_data, f)
+        
+        result = CalibrationResult.from_json(str(output_path))
+        
+        assert result.observed == test_data["observed"]
+        assert result.null == test_data["null"]
+        assert result.diagnosis == test_data["diagnosis"]
+
+    def test_calibration_result_round_trip(self, tmp_path):
+        """CalibrationResult should survive to_json + from_json round trip."""
+        from markovianity_diagnostic.experiments.calibration import CalibrationResult
+        
+        original = CalibrationResult(
+            observed={"T_obs": 2.5, "D_obs": 0.8, "D_parts_obs": [0.2, 0.6], "edge_counts": 5},
+            null={
+                "T_boot": [1.0, 2.0, 3.0, 1.5, 2.1],
+                "D_boot": [0.5, 0.7, 0.9, 0.6, 0.8],
+                "critical_90": 1.45,
+                "critical_95": 1.98,
+                "critical_99": 2.82,
+                "p_value": 0.2
+            },
+            diagnosis={"reject_global_95": True, "first_exceedance_depth": 3}
+        )
+        
+        output_path = tmp_path / "result.json"
+        original.to_json(str(output_path))
+        
+        loaded = CalibrationResult.from_json(str(output_path))
+        
+        assert loaded.observed == original.observed
+        assert loaded.null == original.null
+        assert loaded.diagnosis == original.diagnosis
+
+    def test_json_contains_all_keys(self, tmp_path):
+        """JSON should contain all required top-level keys."""
+        from markovianity_diagnostic.experiments.calibration import CalibrationResult
+        import json
+        
+        result = CalibrationResult(
+            observed={"T_obs": 2.5},
+            null={"critical_90": 1.5, "critical_95": 2.0, "critical_99": 2.8, "p_value": 0.1},
+            diagnosis={"reject_global_95": False}
+        )
+        
+        output_path = tmp_path / "result.json"
+        result.to_json(str(output_path))
+        
+        with open(output_path) as f:
+            data = json.load(f)
+        
+        required_keys = {"observed", "null", "diagnosis"}
+        assert required_keys.issubset(set(data.keys()))

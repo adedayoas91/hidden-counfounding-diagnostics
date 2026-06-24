@@ -1,0 +1,9 @@
+fish,method,dataset,p_selected_absolute,p_selected_relative,p_selected_bootstrap,max_depth,max_D_p,n_warnings
+fish-2,c-GC,220119_F2_run11,,3,,7,0.02585858585858586,3
+fish-3,c-GC,220127_F4_run2,,3,,7,0.03368370759675107,3
+fish-1,c-GC,220210_F1_run6,,3,,7,0.05688729874776386,3
+fish-2,c-GC,220210_F2_run5,,3,,7,0.028381374722838137,3
+fish-2,c-GC-star,220119_F2_run11,,3,,7,0.026262626262626262,3
+fish-3,c-GC-star,220127_F4_run2,,3,,7,0.03511705685618729,3
+fish-1,c-GC-star,220210_F1_run6,,3,,7,0.05706618962432916,3
+fish-2,c-GC-star,220210_F2_run5,,3,,7,0.028677014042867703,3
