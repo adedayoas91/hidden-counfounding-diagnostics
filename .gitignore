@@ -27,3 +27,5 @@ prompts/
 
 # local prose/report artifacts that should live under others/
 README.md
+*_SETUP.md
+*_NOTES.md
