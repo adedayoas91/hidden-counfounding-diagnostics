@@ -20,6 +20,15 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+V2A_HIGH_DIMENSION_SUBSETS = {
+    '220210_F1_run6': {
+        'n_emitters': 35,
+        'n_receivers': 65,
+        'expected_total': 100,
+    },
+}
+
+
 # ============================================================================
 # Checkpoint & Logging
 # ============================================================================
@@ -438,11 +447,11 @@ def v2a_summary_json_payload(summary: dict[str, Any]) -> dict[str, Any]:
 # ============================================================================
 
 
-def get_v2a_selected_cell_indices(recording_dir: Path, recording_id: str) -> np.ndarray:
-    """Load emitter and receiver cell indices for v2a-RSN recording.
-
-    Returns ordered unique indices of identified neurons.
-    """
+def _load_v2a_role_cell_indices(
+    recording_dir: Path,
+    recording_id: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Load emitter and receiver cell indices for one v2a-RSN recording."""
     emitter_path = _best_recording_file(recording_dir, recording_id, 'emitter_cells')
     receiver_path = _best_recording_file(recording_dir, recording_id, 'receiver_cells')
 
@@ -458,6 +467,54 @@ def get_v2a_selected_cell_indices(recording_dir: Path, recording_id: str) -> np.
     receiver = np.asarray(
         np.load(receiver_path, allow_pickle=False), dtype=int
     ).reshape(-1)
+
+    return emitter, receiver
+
+
+def get_v2a_selected_cell_indices(recording_dir: Path, recording_id: str) -> np.ndarray:
+    """Load selected cell indices for a v2a-RSN recording.
+
+    Returns ordered unique indices of identified neurons. The high-dimensional
+    ``220210_F1_run6`` recording is deterministically reduced to 35 emitters and
+    65 receivers so the same 100-cell subset is used in every notebook run.
+    """
+    emitter, receiver = _load_v2a_role_cell_indices(recording_dir, recording_id)
+
+    subset_config = V2A_HIGH_DIMENSION_SUBSETS.get(recording_id)
+    if subset_config is not None:
+        n_emitters = int(subset_config['n_emitters'])
+        n_receivers = int(subset_config['n_receivers'])
+        expected_total = int(subset_config['expected_total'])
+
+        if emitter.size < n_emitters or receiver.size < n_receivers:
+            raise ValueError(
+                f"{recording_id} requires at least {n_emitters} emitters and "
+                f"{n_receivers} receivers for the configured subset, got "
+                f"{emitter.size} emitters and {receiver.size} receivers."
+            )
+
+        selected_emitter = emitter[:n_emitters]
+        selected_receiver = receiver[:n_receivers]
+        ordered_unique = list(
+            dict.fromkeys(
+                np.concatenate([selected_emitter, selected_receiver]).tolist()
+            )
+        )
+        if len(ordered_unique) != expected_total:
+            raise ValueError(
+                f"{recording_id} subset expected {expected_total} unique cells "
+                f"from {n_emitters} emitters and {n_receivers} receivers, got "
+                f"{len(ordered_unique)}. Check emitter/receiver overlap before running."
+            )
+
+        logger.info(
+            "Using deterministic %s subset: %d emitters + %d receivers = %d cells",
+            recording_id,
+            n_emitters,
+            n_receivers,
+            expected_total,
+        )
+        return np.asarray(ordered_unique, dtype=int)
 
     # Return ordered unique indices (emitter first, then new receiver indices)
     ordered_unique = list(dict.fromkeys(np.concatenate([emitter, receiver]).tolist()))

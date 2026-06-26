@@ -7,8 +7,10 @@ import pandas as pd
 
 from markovianity_diagnostic.experiments.v2a_rsn_utils import (
     completed_p_values,
+    get_v2a_selected_cell_indices,
     load_adjacency_checkpoint,
     save_adjacency_checkpoint,
+    subset_v2a_cells,
     upsert_method_outputs,
     upsert_summary_json,
 )
@@ -81,3 +83,45 @@ def test_upsert_summary_json_replaces_recording_entry(tmp_path):
         {"dataset": "fish_a", "T_obs": 3.0},
         {"dataset": "fish_b", "T_obs": 2.0},
     ]
+
+
+def test_get_v2a_selected_cell_indices_uses_ordered_role_union(tmp_path):
+    """Standard recordings should keep emitters first and append new receivers."""
+    recording_id = "fish_a"
+    np.save(tmp_path / "fish_a_emitter_cells.npy", np.array([5, 1, 3]))
+    np.save(tmp_path / "fish_a_receiver_cells.npy", np.array([3, 8, 2]))
+
+    selected = get_v2a_selected_cell_indices(tmp_path, recording_id)
+
+    np.testing.assert_array_equal(selected, np.array([5, 1, 3, 8, 2]))
+
+
+def test_220210_f1_run6_indices_are_reduced_to_35_emitters_65_receivers(tmp_path):
+    """The high-dimensional v2a recording should use the configured 100-cell subset."""
+    recording_id = "220210_F1_run6"
+    emitters = np.arange(0, 201)
+    receivers = np.arange(300, 511)
+    np.save(tmp_path / "220210_F1_F1_run6_emitter_cells.npy", emitters)
+    np.save(tmp_path / "220210_F1_F1_run6_receiver_cells.npy", receivers)
+
+    selected = get_v2a_selected_cell_indices(tmp_path, recording_id)
+
+    expected = np.concatenate([emitters[:35], receivers[:65]])
+    assert selected.shape == (100,)
+    np.testing.assert_array_equal(selected, expected)
+
+
+def test_220210_f1_run6_trace_subset_has_100_rows(tmp_path):
+    """Trace subsetting should apply the same deterministic high-dimensional subset."""
+    recording_id = "220210_F1_run6"
+    emitters = np.arange(0, 201)
+    receivers = np.arange(300, 511)
+    traces = np.arange(600 * 4).reshape(600, 4)
+    np.save(tmp_path / "220210_F1_F1_run6_emitter_cells.npy", emitters)
+    np.save(tmp_path / "220210_F1_F1_run6_receiver_cells.npy", receivers)
+
+    subset = subset_v2a_cells(traces, tmp_path, recording_id)
+
+    expected_indices = np.concatenate([emitters[:35], receivers[:65]])
+    assert subset.shape == (100, 4)
+    np.testing.assert_array_equal(subset, traces[expected_indices, :])
