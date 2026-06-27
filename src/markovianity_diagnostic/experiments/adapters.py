@@ -31,6 +31,17 @@ def _load_gcstar_class() -> type:
 GcStar = _load_gcstar_class()
 
 
+def _load_fast_gcstar_class() -> type:
+    """Load the vectorized ``FastGcStar`` drop-in from the core package."""
+
+    from ..core import FastGcStar
+
+    return FastGcStar
+
+
+FastGcStar = _load_fast_gcstar_class()
+
+
 def _design_matrix(X: np.ndarray, p: int) -> tuple[np.ndarray, np.ndarray]:
     """Build a stacked autoregressive design matrix from ``X``."""
 
@@ -89,10 +100,11 @@ def _run_gcstar_single_depth(
     temporal: bool,
     verbose: int,
     simulation: bool,
+    estimator_cls: type = GcStar,
 ) -> np.ndarray:
-    """Run ``GcStar`` for one conditioning depth and return a binary graph."""
+    """Run a ``GcStar``-compatible estimator for one depth and return a binary graph."""
 
-    estimator = GcStar(
+    estimator = estimator_cls(
         n_perm=n_perm,
         n_pasts=int(p),
         n_lags=n_lags,
@@ -120,8 +132,9 @@ def make_gcstar_analyzer(
     temporal: bool = True,
     verbose: int = 0,
     simulation: bool = True,
+    estimator_cls: type = GcStar,
 ) -> Callable[[np.ndarray, list[int]], dict[int, np.ndarray]]:
-    """Create an analyzer function backed by ``GcStar``."""
+    """Create an analyzer function backed by a ``GcStar``-compatible estimator."""
 
     if method not in {"cgc", "fcgc"}:
         raise ValueError("method must be 'cgc' or 'fcgc'.")
@@ -139,6 +152,7 @@ def make_gcstar_analyzer(
                 temporal=temporal,
                 verbose=verbose,
                 simulation=simulation,
+                estimator_cls=estimator_cls,
             )
             for p_value in p_values
         }
@@ -162,6 +176,24 @@ def analyze_with_gcstar_fcgc(
     """Run ``GcStar`` with the full-conditioning fcGC variant."""
 
     return make_gcstar_analyzer("fcgc")(X, p_values)
+
+
+def analyze_with_fast_gcstar_cgc(
+    X: np.ndarray,
+    p_values: list[int],
+) -> dict[int, np.ndarray]:
+    """Run the vectorized ``FastGcStar`` with the c-GC conditioning set."""
+
+    return make_gcstar_analyzer("cgc", estimator_cls=FastGcStar)(X, p_values)
+
+
+def analyze_with_fast_gcstar_fcgc(
+    X: np.ndarray,
+    p_values: list[int],
+) -> dict[int, np.ndarray]:
+    """Run the vectorized ``FastGcStar`` with the full-conditioning fcGC variant."""
+
+    return make_gcstar_analyzer("fcgc", estimator_cls=FastGcStar)(X, p_values)
 
 
 def analyze_with_user_method(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
@@ -230,5 +262,7 @@ METHODS = {
     "baseline_lstsq": analyze_with_baseline_lstsq,
     "gcstar_cgc": analyze_with_gcstar_cgc,
     "gcstar_fcgc": analyze_with_gcstar_fcgc,
+    "fast_gcstar_cgc": analyze_with_fast_gcstar_cgc,
+    "fast_gcstar_fcgc": analyze_with_fast_gcstar_fcgc,
     "user_method": analyze_with_user_method,
 }
