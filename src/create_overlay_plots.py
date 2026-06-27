@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 ROOT = Path(__file__).parent
 OUTPUT_DIR = ROOT.parent / 'outputs'
@@ -212,7 +211,7 @@ def main():
     for scenario in scenarios:
         plot_overlay_scenario(scenario)
 
-    print(f"\n✅ All overlay plots created!\n")
+    print("\n✅ All overlay plots created!\n")
 
 
 if __name__ == '__main__':

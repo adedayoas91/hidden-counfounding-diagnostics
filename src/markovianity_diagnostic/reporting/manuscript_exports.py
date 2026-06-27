@@ -9,8 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-import pandas as pd
-
 from .figure_specs import FIGURE_SPECS
 from .tables import (
     export_calibration_table,
@@ -177,7 +175,7 @@ def generate_all_tables(output_base_dir: str) -> list[dict[str, Any]]:
     # Table 2: Calibration
     table_name = "Table2_Calibration"
     try:
-        calibration_path = base_path / "outputs/v2a-RSNs/calibration"
+        calibration_path = base_path / "outputs/calibration/v2a"
         df = export_calibration_table(str(calibration_path))
         if not df.empty:
             csv_path = tables_dir / f"{table_name}.csv"
@@ -305,13 +303,16 @@ def create_manuscript_manifest(
     }
 
     # Add figures
+    specs_by_name = {
+        spec.get("name", key): spec for key, spec in FIGURE_SPECS.items()
+    }
     for fig in figures_list:
         fig_entry = {
             "name": fig.get("name"),
             "source_data": fig.get("source_files", []),
             "output_path": fig.get("output_path", ""),
             "code_path": "src/markovianity_diagnostic/reporting/figure_specs.py",
-            "caption": FIGURE_SPECS.get(fig.get("name", {}), {}).get("caption", ""),
+            "caption": specs_by_name.get(fig.get("name"), {}).get("caption", ""),
             "success": fig.get("success", False),
         }
         manifest["figures"].append(fig_entry)
@@ -340,7 +341,7 @@ def create_manuscript_manifest(
     # Write manifest to file
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    manifest_path = output_path / "manuscript_manifest.json"
+    manifest_path = output_path / "nature_methods_figure_manifest.json"
 
     try:
         manifest_path.write_text(json.dumps(manifest, indent=2))

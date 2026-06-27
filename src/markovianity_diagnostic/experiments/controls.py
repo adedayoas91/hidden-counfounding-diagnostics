@@ -13,9 +13,6 @@ Reference:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
-
 import numpy as np
 
 from markovianity_diagnostic.experiments.simulations import (
@@ -72,8 +69,6 @@ class SyntheticMarkovianNull:
         ScenarioResult
             Generated data with ground truth adjacency and metadata.
         """
-        rng = np.random.default_rng(seed)
-
         # Generate lag matrices with decreasing magnitude
         lag_matrices = []
         for lag_idx in range(1, self.order + 1):
@@ -332,6 +327,8 @@ class BlockShuffledControl:
             raise TypeError("X must be a numpy array")
         if X.ndim != 2:
             raise ValueError("X must be 2-dimensional")
+        if block_size < 1:
+            raise ValueError("block_size must be >= 1")
         self.X = X
         self.block_size = block_size
 
@@ -403,24 +400,22 @@ class PhaseRandomizedControl:
             Phase-randomized data with same shape as input.
         """
         rng = np.random.default_rng(seed)
-        T, d = self.X.shape
-
-        X_randomized = np.zeros_like(self.X)
+        _, d = self.X.shape
+        X_randomized = np.zeros_like(self.X, dtype=float)
 
         for col_idx in range(d):
-            # Compute FFT
-            fft_vals = np.fft.fft(self.X[:, col_idx])
-
-            # Extract magnitude and phase
+            # rFFT/irFFT preserves conjugate symmetry and therefore the exact
+            # one-sided spectrum of the real-valued signal.
+            fft_vals = np.fft.rfft(self.X[:, col_idx])
             magnitude = np.abs(fft_vals)
-            phase = np.angle(fft_vals)
-
-            # Randomize phase
-            phase_random = rng.uniform(0, 2 * np.pi, size=T)
-
-            # Reconstruct with randomized phase
+            phase_random = rng.uniform(0, 2 * np.pi, size=fft_vals.size)
+            phase_random[0] = np.angle(fft_vals[0])
+            if self.X.shape[0] % 2 == 0:
+                phase_random[-1] = np.angle(fft_vals[-1])
             fft_randomized = magnitude * np.exp(1j * phase_random)
-            X_randomized[:, col_idx] = np.real(np.fft.ifft(fft_randomized))
+            X_randomized[:, col_idx] = np.fft.irfft(
+                fft_randomized, n=self.X.shape[0]
+            )
 
         return X_randomized
 
@@ -461,4 +456,10 @@ class CircularlyShiftedControl:
         np.ndarray
             Circularly shifted data with same shape as input.
         """
-        return np.roll(self.X, self.lag, axis=0)
+        shifted = np.empty_like(self.X)
+        for column in range(self.X.shape[1]):
+            shifted[:, column] = np.roll(
+                self.X[:, column],
+                self.lag * (column + 1),
+            )
+        return shifted

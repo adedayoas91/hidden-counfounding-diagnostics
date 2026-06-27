@@ -1,7 +1,6 @@
 """Tests for LPCMCI adapter that normalizes output to standard schema."""
 
 import numpy as np
-import pytest
 
 from markovianity_diagnostic.methods.lpcmci_adapter import LPCMCIAdapter
 

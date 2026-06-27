@@ -9,17 +9,18 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import platform
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 from .adapters import METHODS, load_external_method
-from .bootstrap import bootstrap_global_test
+from .bootstrap import calibrated_global_test
 from .calibration import (
-    VARNullModel,
-    ResidualBootstrapNull,
-    MovingBlockBootstrapNull,
     CalibrationResult,
+    MovingBlockBootstrapNull,
+    ResidualBootstrapNull,
+    StationaryBootstrapNull,
+    VARNullModel,
 )
 from .simulations import SCENARIOS
 
@@ -29,6 +30,7 @@ NULL_MODEL_REGISTRY = {
     "var": VARNullModel,
     "residual": ResidualBootstrapNull,
     "moving-block": MovingBlockBootstrapNull,
+    "stationary": StationaryBootstrapNull,
 }
 
 
@@ -62,7 +64,7 @@ def parse_args() -> argparse.Namespace:
         "--null-model",
         choices=sorted(NULL_MODEL_REGISTRY.keys()),
         default="var",
-        help="Null model type: var (VAR), residual (residual bootstrap), or moving-block"
+        help="Null model type: var, residual, moving-block, or stationary",
     )
     parser.add_argument(
         "--critical-levels",
@@ -168,29 +170,42 @@ def main() -> None:
     # Generate synthetic data
     sample = SCENARIOS[args.scenario](**scenario_kwargs(args))
 
-    # Run bootstrap calibration using legacy bootstrap_global_test
-    result = bootstrap_global_test(
+    null_model_cls = NULL_MODEL_REGISTRY[args.null_model]
+    if issubclass(null_model_cls, MovingBlockBootstrapNull):
+        null_model = null_model_cls(p0=args.p0, block_length=args.block_length)
+    else:
+        null_model = null_model_cls(p0=args.p0)
+
+    result = calibrated_global_test(
         sample.X,
         analyze_fn=analyze_fn,
         p_values=args.p_values,
         p0=args.p0,
+        null_model=null_model,
         B=args.B,
-        block_length=args.block_length,
         seed=args.seed + 1000,
+        n_jobs=args.n_jobs,
     )
 
     # Extract bootstrap samples
     T_boot = result.get("T_boot", [])
     T_obs = result.get("T_obs", 0.0)
-    D_obs = result.get("D_obs", {})
+    D_obs = result["D_obs"]
 
     # Compute critical values at requested levels
     critical_values = _compute_critical_values(T_boot, args.critical_levels)
 
     # Compute p-value
     import numpy as np
-    T_boot_array = np.asarray(T_boot)
-    p_value = float((1 + np.sum(T_boot_array >= T_obs)) / (args.B + 1))
+    p_value = float(result["p_value"])
+    pointwise_samples = result["pointwise_samples"]
+    pointwise_bands = {
+        int(depth): {
+            "lower": float(np.quantile(values, (1 - max(args.critical_levels)) / 2)),
+            "upper": float(np.quantile(values, 1 - (1 - max(args.critical_levels)) / 2)),
+        }
+        for depth, values in pointwise_samples.items()
+    }
 
     # Build manifest-compatible output
     manifest = {
@@ -211,7 +226,7 @@ def main() -> None:
         "p_values": args.p_values,
         "random_seed": args.seed,
         "software_versions": {
-            "python": "3.12",
+            "python": platform.python_version(),
             "numpy": np.__version__,
         },
     }
@@ -220,10 +235,12 @@ def main() -> None:
     observed = {
         "T_obs": float(T_obs),
         "D_obs": {int(k): float(v) for k, v in D_obs.items()},
+        "edge_counts": {},
     }
 
     null_data = {
         "T_boot": [float(v) for v in T_boot],
+        "D_boot_pointwise": pointwise_bands,
         "p_value": p_value,
     }
     # Add critical values with human-readable names
@@ -233,6 +250,14 @@ def main() -> None:
 
     diagnosis = {
         "reject_global_95": p_value < 0.05,
+        "first_exceedance_depth": next(
+            (
+                int(depth)
+                for depth in sorted(D_obs)
+                if D_obs[depth] > pointwise_bands[int(depth)]["upper"]
+            ),
+            None,
+        ),
         "p0": int(args.p0),
         "B": int(args.B),
     }
@@ -253,6 +278,22 @@ def main() -> None:
     result_path = output_dir / "bootstrap.json"
     calibration_result.to_json(str(result_path))
     logger.info(f"Wrote bootstrap calibration to {result_path}")
+
+    surrogate_path = None
+    if args.save_surrogate_summaries:
+        surrogate_path = output_dir / "surrogate_summaries.json"
+        surrogate_path.write_text(
+            json.dumps(
+                {
+                    "T_boot": result["T_boot"],
+                    "D_boot": result["D_boot"],
+                    "null_model_metadata": result["null_model_metadata"],
+                },
+                indent=2,
+            )
+        )
+        manifest["output_paths"].append(str(surrogate_path))
+        manifest_path.write_text(json.dumps(manifest, indent=2))
 
     # Legacy compatibility: also write old format
     legacy_payload = {
@@ -283,9 +324,11 @@ def main() -> None:
 
     # Print summary
     print(f"Wrote bootstrap calibration to {output_dir}")
-    print(f"  - manifest.json")
-    print(f"  - bootstrap.json (CalibrationResult)")
-    print(f"  - bootstrap_legacy.json (legacy format)")
+    print("  - manifest.json")
+    print("  - bootstrap.json (CalibrationResult)")
+    print("  - bootstrap_legacy.json (legacy format)")
+    if surrogate_path is not None:
+        print("  - surrogate_summaries.json")
     print()
     print("Summary:")
     print(json.dumps({

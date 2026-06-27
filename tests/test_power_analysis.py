@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pathlib import Path
 
 from markovianity_diagnostic.experiments.power import (
     PowerAnalyzer,
@@ -24,7 +23,6 @@ def fast_power_method(monkeypatch):
     from markovianity_diagnostic.experiments import power
 
     def analyze_fast(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
-        d = X.shape[1]
         base = np.abs(np.corrcoef(X, rowvar=False)) > 0.15
         np.fill_diagonal(base, 0)
         return {int(p): base.astype(int).copy() for p in p_values}

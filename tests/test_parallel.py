@@ -3,18 +3,15 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 
 import numpy as np
 import pytest
-from joblib import dump, load
 
 from src.markovianity_diagnostic.experiments.parallel import (
     _get_cache_path,
     _hash_inputs,
     _load_resume_file,
-    _run_single_simulation,
     _save_resume_file,
     parallel_bootstrap,
     parallel_over_fish,
@@ -22,7 +19,6 @@ from src.markovianity_diagnostic.experiments.parallel import (
 )
 from src.markovianity_diagnostic.experiments.simulations import (
     ScenarioResult,
-    scenario_order1_unconfounded,
 )
 
 
@@ -234,7 +230,7 @@ class TestParallelSimulationGrid:
     ) -> None:
         """Caching should create cache files."""
         cache_dir = tmp_path / "cache"
-        results = parallel_simulation_grid(
+        parallel_simulation_grid(
             scenarios=sample_scenarios,
             methods=sample_methods,
             p_values=[1, 2],
@@ -259,8 +255,6 @@ class TestParallelSimulationGrid:
             n_jobs=1,
             cache_dir=cache_dir,
         )
-        initial_count = len(results1)
-
         results2 = parallel_simulation_grid(
             scenarios=sample_scenarios,
             methods=sample_methods,
@@ -271,7 +265,7 @@ class TestParallelSimulationGrid:
             resume=True,
         )
 
-        assert len(results2) == 0
+        assert results2.keys() == results1.keys()
 
     def test_force_bypasses_cache(
         self, sample_scenarios, sample_methods, tmp_path
@@ -376,7 +370,7 @@ class TestParallelBootstrap:
 
         X = np.random.RandomState(42).randn(200, 5)
 
-        T_boot1 = parallel_bootstrap(
+        parallel_bootstrap(
             X=X,
             null_model_fit=null_model_fit,
             B=5,
@@ -433,9 +427,12 @@ class TestParallelOverFish:
     def test_caching_skips_repeated_calls(
         self, fish_data, tmp_path
     ) -> None:
-        """Caching should skip already processed fish."""
+        """Caching should reuse values without dropping result positions."""
 
+        calls = 0
         def dummy_analysis(X: np.ndarray) -> float:
+            nonlocal calls
+            calls += 1
             return float(np.sum(X))
 
         results1 = parallel_over_fish(
@@ -452,4 +449,5 @@ class TestParallelOverFish:
             cache_dir=tmp_path,
         )
 
-        assert len([r for r in results2 if r is not None]) == 0
+        assert calls == len(fish_data)
+        assert results2 == results1

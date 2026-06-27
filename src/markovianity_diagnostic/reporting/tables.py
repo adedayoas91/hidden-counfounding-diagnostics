@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Optional
-
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -119,43 +117,54 @@ def export_calibration_table(calibration_results_path: str) -> pd.DataFrame:
 
     records = []
 
-    # Try to load as JSON file
+    def calibration_record(data: dict, source_name: str) -> dict | None:
+        if {"observed", "null", "diagnosis"}.issubset(data):
+            null_data = data["null"]
+            return {
+                "null_model": data.get("null_model", source_name),
+                "n_bootstrap": len(null_data.get("T_boot", [])),
+                "critical_90": null_data.get("critical_90"),
+                "critical_95": null_data.get("critical_95"),
+                "critical_99": null_data.get("critical_99"),
+                "p_value": null_data.get("p_value"),
+            }
+
+        calibration_data = data.get("bootstrap")
+        if calibration_data is None:
+            calibration_data = data.get("calibration_result", {}).get("null")
+        if not calibration_data:
+            return None
+        config = data.get("config", {})
+        return {
+            "null_model": data.get(
+                "null_model", config.get("null_model", source_name)
+            ),
+            "n_bootstrap": len(calibration_data.get("T_boot", [])),
+            "critical_90": calibration_data.get("critical_90"),
+            "critical_95": calibration_data.get("critical_95"),
+            "critical_99": calibration_data.get("critical_99"),
+            "p_value": calibration_data.get("p_value"),
+        }
+
     if path.is_file() and path.suffix == ".json":
         try:
             data = json.loads(path.read_text())
-            calibration_data = data.get("bootstrap", {})
-            records.append(
-                {
-                    "null_model": data.get("null_model", "unknown"),
-                    "n_bootstrap": len(calibration_data.get("T_boot", [])),
-                    "critical_90": calibration_data.get("critical_90"),
-                    "critical_95": calibration_data.get("critical_95"),
-                    "critical_99": calibration_data.get("critical_99"),
-                    "p_value": calibration_data.get("p_value"),
-                }
-            )
+            record = calibration_record(data, path.stem)
+            if record:
+                records.append(record)
         except Exception as e:
             logger.error(f"Failed to load calibration JSON: {e}")
             return pd.DataFrame(schema)
     else:
         # Try to load from directory with multiple JSON files
         if path.is_dir():
-            json_files = list(path.glob("*.json"))
+            json_files = list(path.rglob("bootstrap*.json"))
             for json_file in json_files:
                 try:
                     data = json.loads(json_file.read_text())
-                    if "bootstrap" in data:
-                        calibration_data = data["bootstrap"]
-                        records.append(
-                            {
-                                "null_model": json_file.stem,
-                                "n_bootstrap": len(calibration_data.get("T_boot", [])),
-                                "critical_90": calibration_data.get("critical_90"),
-                                "critical_95": calibration_data.get("critical_95"),
-                                "critical_99": calibration_data.get("critical_99"),
-                                "p_value": calibration_data.get("p_value"),
-                            }
-                        )
+                    record = calibration_record(data, json_file.stem)
+                    if record:
+                        records.append(record)
                 except Exception as e:
                     logger.debug(f"Could not parse {json_file}: {e}")
 

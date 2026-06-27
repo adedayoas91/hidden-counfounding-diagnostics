@@ -5,10 +5,13 @@ TDD Approach: Tests written FIRST, implementation follows.
 
 import numpy as np
 import pytest
-from pathlib import Path
-from typing import Optional
 
-from markovianity_diagnostic.experiments.calibration import NullModel
+from markovianity_diagnostic.experiments.calibration import (
+    MovingBlockBootstrapNull,
+    NullModel,
+    ResidualBootstrapNull,
+    VARNullModel,
+)
 
 
 class SimpleTestNull(NullModel):
@@ -111,15 +114,6 @@ class TestNullModelMetadata:
         assert metadata["fitted"] is True
         assert metadata["n_samples"] == T
         assert metadata["n_features"] == d
-"""TDD Tests for Phase 1.2: VARNullModel, ResidualBootstrapNull, MovingBlockBootstrapNull"""
-
-import numpy as np
-import pytest
-from markovianity_diagnostic.experiments.calibration import (
-    VARNullModel, ResidualBootstrapNull, MovingBlockBootstrapNull
-)
-
-
 class TestVARNullModelFit:
     """Test VARNullModel.fit() interface."""
 

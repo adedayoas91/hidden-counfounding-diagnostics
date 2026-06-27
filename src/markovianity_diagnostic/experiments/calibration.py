@@ -5,12 +5,13 @@ calibrating the markovianity test statistic T_obs against bootstrap
 null distributions.
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 import json
 import logging
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Optional
+
 import numpy as np
-from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ class NullModel(ABC):
 
     @property
     @abstractmethod
-    def metadata(self) -> Dict:
+    def metadata(self) -> dict[str, Any]:
         """Return metadata about the fitted model.
 
         Returns:
@@ -197,7 +198,7 @@ class VARNullModel(NullModel):
         return X_sample
 
     @property
-    def metadata(self) -> Dict:
+    def metadata(self) -> dict[str, Any]:
         """Return model metadata."""
         return {
             "model": "VAR",
@@ -262,7 +263,6 @@ class ResidualBootstrapNull(NullModel):
             raise ValueError("Model must be fitted before sampling")
         
         rng = np.random.default_rng(seed)
-        d = self._X_fit.shape[1]
         n_residuals = self._residuals.shape[0]
         
         X_sample = _initial_conditions(self._X_fit, T, self.p0)
@@ -275,7 +275,7 @@ class ResidualBootstrapNull(NullModel):
         return X_sample
 
     @property
-    def metadata(self) -> Dict:
+    def metadata(self) -> dict[str, Any]:
         """Return model metadata."""
         return {
             "model": "ResidualBootstrap",
@@ -301,6 +301,8 @@ class MovingBlockBootstrapNull(NullModel):
             p0: Lag order for VAR model (default 1).
             block_length: Length of blocks to resample (default 20).
         """
+        if block_length < 1:
+            raise ValueError("block_length must be >= 1")
         self.p0 = p0
         self.block_length = block_length
         self._A: Optional[np.ndarray] = None
@@ -342,7 +344,6 @@ class MovingBlockBootstrapNull(NullModel):
             raise ValueError("Model must be fitted before sampling")
         
         rng = np.random.default_rng(seed)
-        d = self._X_fit.shape[1]
         n_residuals = self._residuals.shape[0]
         
         # Determine number of blocks available
@@ -368,7 +369,7 @@ class MovingBlockBootstrapNull(NullModel):
         return X_sample
 
     @property
-    def metadata(self) -> Dict:
+    def metadata(self) -> dict[str, Any]:
         """Return model metadata."""
         return {
             "model": "MovingBlockBootstrap",
@@ -378,6 +379,45 @@ class MovingBlockBootstrapNull(NullModel):
             "n_samples": self._X_fit.shape[0] if self._fitted else None,
             "n_features": self._X_fit.shape[1] if self._fitted else None,
         }
+
+
+class StationaryBootstrapNull(MovingBlockBootstrapNull):
+    """Resample VAR residuals using geometrically distributed blocks.
+
+    ``block_length`` is the expected block length. This preserves local
+    residual dependence while avoiding fixed block boundaries.
+    """
+
+    def sample(self, T: int, seed: int) -> np.ndarray:
+        if not self._fitted:
+            raise ValueError("Model must be fitted before sampling")
+        if T < 1:
+            raise ValueError("T must be >= 1")
+
+        rng = np.random.default_rng(seed)
+        n_residuals = self._residuals.shape[0]
+        residual_index = int(rng.integers(0, n_residuals))
+        restart_probability = 1.0 / self.block_length
+        X_sample = _initial_conditions(self._X_fit, T, self.p0)
+
+        for t in range(self.p0, T):
+            if t > self.p0 and rng.random() < restart_probability:
+                residual_index = int(rng.integers(0, n_residuals))
+            else:
+                residual_index = (residual_index + 1) % n_residuals
+            X_sample[t] = (
+                _predict_next(X_sample[:t], self._A, self.p0)
+                + self._residuals[residual_index]
+            )
+
+        return X_sample
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        metadata = super().metadata
+        metadata["model"] = "StationaryBootstrap"
+        metadata["expected_block_length"] = metadata.pop("block_length")
+        return metadata
 
 
 def _json_serializer(obj):
@@ -401,9 +441,9 @@ class CalibrationResult:
         diagnosis: Dictionary containing diagnostic results.
                   Keys: reject_global_95, first_exceedance_depth (optional)
     """
-    observed: Dict
-    null: Dict
-    diagnosis: Dict
+    observed: dict[str, Any]
+    null: dict[str, Any]
+    diagnosis: dict[str, Any]
     
     def to_json(self, path: str) -> None:
         """Serialize CalibrationResult to JSON file.

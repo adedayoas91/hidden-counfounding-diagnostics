@@ -12,8 +12,6 @@ Tests verify:
 
 import json
 import sys
-from pathlib import Path
-import tempfile
 import numpy as np
 import pytest
 
@@ -24,7 +22,6 @@ def fast_bootstrap_cli_method(monkeypatch):
     from markovianity_diagnostic.experiments import bootstrap_runner
 
     def analyze_fast(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
-        d = X.shape[1]
         corr = np.abs(np.corrcoef(X, rowvar=False)) > 0.2
         np.fill_diagonal(corr, 0)
         return {int(p): corr.astype(int).copy() for p in p_values}
@@ -450,7 +447,7 @@ class TestBootstrapCLIMainFunction:
         assert manifest["method_params"]["critical_levels"] == [0.85, 0.95]
 
     def test_main_with_null_model_option(self, tmp_path):
-        """main() should record --null-model in manifest."""
+        """main() should execute the selected null model, not only record it."""
         from markovianity_diagnostic.experiments.bootstrap_runner import main
 
         output_dir = tmp_path / "output"
@@ -476,6 +473,39 @@ class TestBootstrapCLIMainFunction:
 
         assert manifest["method"] == "var"
         assert manifest["method_params"]["null_model"] == "var"
+
+        with open(output_dir / "bootstrap_legacy.json") as f:
+            legacy = json.load(f)
+        assert legacy["calibration_result"]["null"]["T_boot"]
+
+    def test_save_surrogate_summaries_writes_detailed_output(self, tmp_path):
+        from markovianity_diagnostic.experiments.bootstrap_runner import main
+
+        output_dir = tmp_path / "output"
+        old_argv = sys.argv
+        try:
+            sys.argv = [
+                "test",
+                "--scenario", "order1_unconfounded",
+                "--output-dir", str(output_dir),
+                "--T", "100",
+                "--B", "3",
+                "--p-values", "1", "2",
+                "--null-model", "stationary",
+                "--block-length", "5",
+                "--save-surrogate-summaries",
+                "--n-jobs", "2",
+            ]
+            main()
+        finally:
+            sys.argv = old_argv
+
+        summaries = json.loads(
+            (output_dir / "surrogate_summaries.json").read_text()
+        )
+        assert len(summaries["T_boot"]) == 3
+        assert len(summaries["D_boot"]) == 3
+        assert summaries["null_model_metadata"]["model"] == "StationaryBootstrap"
 
     def test_main_reproducible_with_seed(self, tmp_path):
         """Two runs with same seed should produce identical T_obs."""

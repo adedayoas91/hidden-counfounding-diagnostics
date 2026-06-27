@@ -5,8 +5,6 @@ Positive and negative controls for Markovianity diagnostic validation.
 """
 
 import numpy as np
-import pytest
-from pathlib import Path
 
 from markovianity_diagnostic.experiments.controls import (
     SyntheticMarkovianNull,
@@ -281,6 +279,15 @@ class TestPhaseRandomizedControl:
 
         np.testing.assert_array_equal(rand1, rand2)
 
+    def test_preserves_power_spectrum(self, synthetic_markov_data):
+        randomized = PhaseRandomizedControl(synthetic_markov_data).generate(seed=42)
+        np.testing.assert_allclose(
+            np.abs(np.fft.rfft(randomized, axis=0)),
+            np.abs(np.fft.rfft(synthetic_markov_data, axis=0)),
+            rtol=1e-10,
+            atol=1e-10,
+        )
+
 
 class TestCircularlyShiftedControl:
     """Test circularly shifted control."""
@@ -308,16 +315,14 @@ class TestCircularlyShiftedControl:
 
     def test_lag_shifts_appropriately(self, synthetic_markov_data):
         """Shifted data should match source at offset."""
-        T = synthetic_markov_data.shape[0]
         ctrl = CircularlyShiftedControl(synthetic_markov_data, lag=1)
         shifted = ctrl.generate(seed=42)
 
-        # Element at position t should equal element at position t-1 in original
-        # (with wraparound)
-        np.testing.assert_array_equal(
-            shifted[1:, :],
-            synthetic_markov_data[:-1, :]
-        )
+        for column in range(synthetic_markov_data.shape[1]):
+            np.testing.assert_array_equal(
+                shifted[:, column],
+                np.roll(synthetic_markov_data[:, column], column + 1),
+            )
 
     def test_reproducibility(self, synthetic_markov_data):
         """Shift is deterministic (no randomness)."""

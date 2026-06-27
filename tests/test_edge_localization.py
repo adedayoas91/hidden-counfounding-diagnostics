@@ -7,8 +7,6 @@ Tests verify that compute_edge_instability_metrics produces correct edge-level m
 import numpy as np
 import pandas as pd
 import pytest
-from typing import Optional
-from pathlib import Path
 
 
 class TestComputeEdgeInstabilityMetrics:

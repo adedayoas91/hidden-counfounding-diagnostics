@@ -271,7 +271,6 @@ def scenario_omitted_lag_order(
 ) -> ScenarioResult:
     """Higher-order VAR system observed with misspecified lag order."""
 
-    rng = np.random.default_rng(seed)
     if true_order == 1:
         a1 = scale_to_stability(make_sparse_matrix(d, edge_prob=0.10, seed=seed + 1) * 0.60)
         lag_matrices = [a1]
@@ -312,7 +311,6 @@ def scenario_undersampled_markov(
 ) -> ScenarioResult:
     """Markov(1) system observed at coarser time resolution."""
 
-    rng = np.random.default_rng(seed)
     T_fine = T * undersample + 500
     a1 = scale_to_stability(make_sparse_matrix(d, edge_prob=0.10, seed=seed + 1) * 0.70)
     X_fine = simulate_var(T=T_fine, lag_matrices=[a1], noise_scale=noise_scale, seed=seed + 10)
@@ -534,7 +532,6 @@ def scenario_observation_filtering(
 ) -> ScenarioResult:
     """Markov(1) system observed through temporal filtering."""
 
-    rng = np.random.default_rng(seed)
     T_fine = T + 2 * filter_order + 100
     a1 = scale_to_stability(make_sparse_matrix(d, edge_prob=0.10, seed=seed + 1) * 0.65)
     X_fine = simulate_var(T=T_fine, lag_matrices=[a1], noise_scale=noise_scale, seed=seed + 10)
@@ -577,7 +574,6 @@ def scenario_partial_observation_hidden_nodes_strong(
 ) -> ScenarioResult:
     """Partial observation with strong hidden node coupling."""
 
-    rng = np.random.default_rng(seed)
     d_total = d_observed + d_hidden
     a1 = scale_to_stability(make_sparse_matrix(d_total, edge_prob=0.12, seed=seed + 1))
     hidden_indices = np.arange(d_observed, d_total)

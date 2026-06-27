@@ -120,18 +120,6 @@ def parallel_simulation_grid(
             for repeat in range(n_repeats):
                 task_key = (scenario_name, method_name, repeat)
 
-                if not force and cache_dir is not None and resume:
-                    cache_key = _hash_inputs(
-                        scenario_name, method_name, repeat
-                    )
-                    cache_path = _get_cache_path(cache_dir, cache_key)
-                    if cache_path.exists() and resume_tracker.get(cache_key, False):
-                        logger.info(
-                            f"Skipping cached {task_key} "
-                            f"(cache_key={cache_key[:8]}...)"
-                        )
-                        continue
-
                 tasks.append(
                     delayed(_run_single_simulation)(
                         scenario_name=scenario_name,
@@ -150,7 +138,7 @@ def parallel_simulation_grid(
         f"(cache_dir={cache_dir}, force={force})"
     )
 
-    results_list = Parallel(n_jobs=n_jobs)(tasks)
+    results_list = Parallel(n_jobs=n_jobs, prefer="threads")(tasks)
 
     results = {}
     for task_idx, result in enumerate(results_list):
@@ -205,7 +193,7 @@ def _run_single_simulation(
         or None if loaded from cache.
     """
 
-    cache_key = _hash_inputs(scenario_name, method_name, repeat)
+    cache_key = _hash_inputs(scenario_name, method_name, repeat, p_values)
 
     if cache_dir is not None:
         cache_path = _get_cache_path(cache_dir, cache_key)
@@ -213,7 +201,7 @@ def _run_single_simulation(
             try:
                 cached_result = load(cache_path)
                 logger.debug(f"Loaded cached result for {cache_key[:8]}...")
-                return None
+                return cached_result
             except Exception as e:
                 logger.warning(f"Failed to load cache {cache_key[:8]}...: {e}")
 
@@ -312,7 +300,7 @@ def parallel_bootstrap(
     ]
 
     logger.info(f"Running {B} bootstrap replicates with n_jobs={n_jobs}")
-    T_boot = np.array(Parallel(n_jobs=n_jobs)(tasks))
+    T_boot = np.array(Parallel(n_jobs=n_jobs, prefer="threads")(tasks))
 
     if cache_dir is not None:
         cache_path = _get_cache_path(cache_dir, cache_key)
@@ -390,11 +378,7 @@ def parallel_over_fish(
     task_mapping = {}
 
     for fish_idx, fish_data in enumerate(fish_list):
-        cache_key = _hash_inputs("fish", fish_idx, fish_data.shape)
-
-        if cache_dir is not None and resume_tracker.get(cache_key, False):
-            logger.info(f"Skipping cached fish {fish_idx} (cache_key={cache_key[:8]}...)")
-            continue
+        cache_key = _hash_inputs("fish", fish_idx, fish_data)
 
         tasks.append(
             delayed(_run_fish_analysis)(
@@ -408,7 +392,7 @@ def parallel_over_fish(
         task_mapping[len(tasks) - 1] = fish_idx
 
     logger.info(f"Running analysis on {len(tasks)} fish with n_jobs={n_jobs}")
-    results_list = Parallel(n_jobs=n_jobs)(tasks)
+    results_list = Parallel(n_jobs=n_jobs, prefer="threads")(tasks)
 
     results = [None] * len(fish_list)
     for task_idx, result in enumerate(results_list):
@@ -462,7 +446,7 @@ def _run_fish_analysis(
             try:
                 cached_result = load(cache_path)
                 logger.debug(f"Loaded cached fish {fish_idx}")
-                return None
+                return cached_result
             except Exception as e:
                 logger.warning(f"Failed to load fish cache {fish_idx}: {e}")
 

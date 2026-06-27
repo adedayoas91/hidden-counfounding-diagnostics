@@ -14,18 +14,18 @@ Key output metrics:
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import logging
 import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 import numpy as np
 
 from .adapters import METHODS
 from .graph_metrics import compute_graph_instability
-from .simulations import ScenarioResult
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +192,7 @@ class PowerAnalyzer:
         verbose: bool = False,
         seed: int | None = None,
         method_fn: Callable[[np.ndarray, list[int]], dict[int, np.ndarray]] | None = None,
+        detection_threshold: float = 0.1,
     ):
         """Initialize power analyzer."""
         self.grid = grid
@@ -201,6 +202,9 @@ class PowerAnalyzer:
         self.verbose = verbose
         self.seed = seed
         self.method_fn = method_fn
+        if detection_threshold < 0:
+            raise ValueError("detection_threshold must be non-negative")
+        self.detection_threshold = detection_threshold
         self._scenario_fn = self._get_scenario_fn()
 
     def _get_scenario_fn(self):
@@ -230,11 +234,14 @@ class PowerAnalyzer:
                             for noise_scale in self.grid.noise_scales:
                                 for repeat in range(self.repeats):
                                     # Use seed offset for reproducibility
-                                    local_seed = (
-                                        (self.seed or 0)
-                                        + repeat
-                                        + 1000000 * hash((T, d, edge_density, conf_strength, latent_ar, noise_scale))
-                                    ) % (2**31 - 1)
+                                    seed_material = (
+                                        f"{self.seed or 0}|{T}|{d}|{edge_density}|"
+                                        f"{conf_strength}|{latent_ar}|{noise_scale}|{repeat}"
+                                    ).encode()
+                                    local_seed = int.from_bytes(
+                                        hashlib.sha256(seed_material).digest()[:4],
+                                        "little",
+                                    )
 
                                     # Generate synthetic data
                                     start_time = time.time()
@@ -248,15 +255,37 @@ class PowerAnalyzer:
                                         seed=local_seed,
                                     )
 
-                                    # Run inference
-                                    adjacencies = method_fn(scenario.X, self.p_values)
+                                    from .simulations import scenario_order1_unconfounded
 
-                                    # Compute metrics
-                                    instability = compute_graph_instability(adjacencies)
-                                    p_star = self._select_p_star(instability)
-                                    tpr, fpr = self._compute_metrics(
-                                        adjacencies[p_star],
-                                        scenario.ground_truth_compact,
+                                    null_scenario = scenario_order1_unconfounded(
+                                        T=T,
+                                        d=d,
+                                        edge_prob=edge_density,
+                                        noise_scale=noise_scale,
+                                        seed=local_seed + 1,
+                                    )
+
+                                    positive_adjacencies = method_fn(
+                                        scenario.X, self.p_values
+                                    )
+                                    null_adjacencies = method_fn(
+                                        null_scenario.X, self.p_values
+                                    )
+
+                                    positive_instability = compute_graph_instability(
+                                        positive_adjacencies
+                                    )
+                                    null_instability = compute_graph_instability(
+                                        null_adjacencies
+                                    )
+                                    p_star = self._select_p_star(positive_instability)
+                                    tpr = float(
+                                        max(positive_instability.values(), default=0.0)
+                                        > self.detection_threshold
+                                    )
+                                    fpr = float(
+                                        max(null_instability.values(), default=0.0)
+                                        > self.detection_threshold
                                     )
                                     runtime_sec = time.time() - start_time
 

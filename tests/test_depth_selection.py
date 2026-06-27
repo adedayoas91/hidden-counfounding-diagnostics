@@ -8,8 +8,6 @@ Tests for DepthSelector class with three selection rules:
 Output: DepthSelectionResult with p_values, selected, warnings
 """
 
-import numpy as np
-import pytest
 from markovianity_diagnostic.experiments.depth_selection import (
     DepthSelector,
     DepthSelectionResult,
