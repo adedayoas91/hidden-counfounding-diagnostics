@@ -28,4 +28,6 @@ def _load_gcstar() -> type:
 
 GcStar = _load_gcstar()
 
-__all__ = ["GcStar", "adj_mtx", "continuous_noise_fun"]
+from .fast_causalised_GC import FastGcStar  # noqa: E402  (requires GcStar above)
+
+__all__ = ["GcStar", "FastGcStar", "adj_mtx", "continuous_noise_fun"]
