@@ -130,11 +130,16 @@ def recovery_metrics(predicted: np.ndarray, truth: np.ndarray) -> dict[str, floa
 
     predicted = zero_diagonal(predicted).astype(int)
     truth = zero_diagonal(truth).astype(int)
+    if predicted.shape != truth.shape or predicted.ndim != 2:
+        raise ValueError("predicted and truth must be equally shaped square matrices")
+    off_diagonal = ~np.eye(predicted.shape[0], dtype=bool)
+    predicted_values = predicted[off_diagonal]
+    truth_values = truth[off_diagonal]
 
-    tp = int(np.logical_and(predicted == 1, truth == 1).sum())
-    tn = int(np.logical_and(predicted == 0, truth == 0).sum())
-    fp = int(np.logical_and(predicted == 1, truth == 0).sum())
-    fn = int(np.logical_and(predicted == 0, truth == 1).sum())
+    tp = int(np.logical_and(predicted_values == 1, truth_values == 1).sum())
+    tn = int(np.logical_and(predicted_values == 0, truth_values == 0).sum())
+    fp = int(np.logical_and(predicted_values == 1, truth_values == 0).sum())
+    fn = int(np.logical_and(predicted_values == 0, truth_values == 1).sum())
 
     total = tp + tn + fp + fn
     accuracy = (tp + tn) / total if total else 0.0
@@ -167,6 +172,7 @@ def summarize_run(
         "D_parts": d_parts,
         "edge_counts": counts,
         "T_obs": compute_stability_test_statistic(d_stats),
+        "cumulative_instability": float(sum(d_stats.values())),
     }
     if truth is not None:
         summary["metrics_by_p"] = {
@@ -209,6 +215,7 @@ def compute_graph_stability_metrics(
         "D_p": d_p,
         "D_parts": d_parts,
         "T_obs": compute_stability_test_statistic(d_p),
+        "cumulative_instability": float(sum(d_p.values())),
     }
 
 

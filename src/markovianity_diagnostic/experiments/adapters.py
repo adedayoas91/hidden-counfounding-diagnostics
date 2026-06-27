@@ -196,6 +196,134 @@ def analyze_with_fast_gcstar_fcgc(
     return make_gcstar_analyzer("fcgc", estimator_cls=FastGcStar)(X, p_values)
 
 
+def _collapse_tigramite_graph(
+    graph: np.ndarray,
+    *,
+    directed_only: bool,
+) -> np.ndarray:
+    """Collapse Tigramite lag marks to the package's target-by-source schema."""
+    n_variables = graph.shape[0]
+    adjacency = np.zeros((n_variables, n_variables), dtype=int)
+    for source in range(graph.shape[0]):
+        for target in range(graph.shape[1]):
+            if source == target:
+                continue
+            marks = [str(mark).strip() for mark in np.ravel(graph[source, target])]
+            if directed_only:
+                present = any(">" in mark and "<" not in mark for mark in marks)
+            else:
+                present = any(mark for mark in marks)
+            adjacency[target, source] = int(present)
+    np.fill_diagonal(adjacency, 0)
+    return adjacency
+
+
+def _analyze_with_tigramite(
+    X: np.ndarray,
+    p_values: list[int],
+    *,
+    algorithm: str,
+    pc_alpha: float = 0.05,
+) -> dict[int, np.ndarray]:
+    """Run one Tigramite algorithm over the shared conditioning-depth grid."""
+    from tigramite import data_processing as pp
+
+    output: dict[int, np.ndarray] = {}
+    for depth in p_values:
+        dataframe = pp.DataFrame(np.asarray(X, dtype=float))
+        if algorithm == "pcmciplus":
+            from tigramite.independence_tests.parcorr import ParCorr
+            from tigramite.pcmci import PCMCI
+
+            learner = PCMCI(
+                dataframe=dataframe,
+                cond_ind_test=ParCorr(),
+                verbosity=0,
+            )
+            result = learner.run_pcmciplus(
+                tau_min=1,
+                tau_max=int(depth),
+                pc_alpha=pc_alpha,
+            )
+            directed_only = True
+        elif algorithm == "fullci":
+            from tigramite.independence_tests.parcorr import ParCorr
+            from tigramite.pcmci import PCMCI
+
+            learner = PCMCI(
+                dataframe=dataframe,
+                cond_ind_test=ParCorr(),
+                verbosity=0,
+            )
+            result = learner.run_fullci(tau_max=int(depth))
+            directed_only = True
+        elif algorithm == "jpcmciplus":
+            from tigramite.independence_tests.parcorr_mult import ParCorrMult
+            from tigramite.jpcmciplus import JPCMCIplus
+
+            learner = JPCMCIplus(
+                dataframe=dataframe,
+                cond_ind_test=ParCorrMult(significance="analytic"),
+                node_classification={
+                    index: "system" for index in range(X.shape[1])
+                },
+                verbosity=0,
+            )
+            result = learner.run_jpcmciplus(
+                tau_min=0,
+                tau_max=int(depth),
+                pc_alpha=pc_alpha,
+            )
+            directed_only = True
+        elif algorithm == "lpcmci":
+            from tigramite.independence_tests.parcorr import ParCorr
+            from tigramite.lpcmci import LPCMCI
+
+            learner = LPCMCI(
+                dataframe=dataframe,
+                cond_ind_test=ParCorr(significance="analytic"),
+                verbosity=0,
+            )
+            result = learner.run_lpcmci(
+                tau_min=0,
+                tau_max=int(depth),
+                pc_alpha=pc_alpha,
+            )
+            directed_only = False
+        else:  # pragma: no cover - private helper guards this
+            raise ValueError(f"Unknown Tigramite algorithm: {algorithm}")
+
+        output[int(depth)] = _collapse_tigramite_graph(
+            result["graph"],
+            directed_only=directed_only,
+        )
+    return output
+
+
+def analyze_with_pcmciplus(
+    X: np.ndarray, p_values: list[int]
+) -> dict[int, np.ndarray]:
+    return _analyze_with_tigramite(X, p_values, algorithm="pcmciplus")
+
+
+def analyze_with_fullci(
+    X: np.ndarray, p_values: list[int]
+) -> dict[int, np.ndarray]:
+    return _analyze_with_tigramite(X, p_values, algorithm="fullci")
+
+
+def analyze_with_jpcmciplus(
+    X: np.ndarray, p_values: list[int]
+) -> dict[int, np.ndarray]:
+    return _analyze_with_tigramite(X, p_values, algorithm="jpcmciplus")
+
+
+def analyze_with_lpcmci(
+    X: np.ndarray, p_values: list[int]
+) -> dict[int, np.ndarray]:
+    return _analyze_with_tigramite(X, p_values, algorithm="lpcmci")
+
+
 def analyze_with_user_method(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
     """Placeholder for user-supplied methods.
 
@@ -260,9 +388,60 @@ def load_external_method(spec: str) -> Callable[[np.ndarray, list[int]], dict[in
 
 METHODS = {
     "baseline_lstsq": analyze_with_baseline_lstsq,
-    "gcstar_cgc": analyze_with_gcstar_cgc,
-    "gcstar_fcgc": analyze_with_gcstar_fcgc,
+    "gcstar_cgc": analyze_with_fast_gcstar_cgc,
+    "gcstar_fcgc": analyze_with_fast_gcstar_fcgc,
     "fast_gcstar_cgc": analyze_with_fast_gcstar_cgc,
     "fast_gcstar_fcgc": analyze_with_fast_gcstar_fcgc,
+    "legacy_gcstar_cgc": analyze_with_gcstar_cgc,
+    "legacy_gcstar_fcgc": analyze_with_gcstar_fcgc,
+    "pcmciplus": analyze_with_pcmciplus,
+    "fullci": analyze_with_fullci,
+    "jpcmciplus": analyze_with_jpcmciplus,
+    "lpcmci": analyze_with_lpcmci,
     "user_method": analyze_with_user_method,
+}
+
+METHOD_METADATA: dict[str, dict[str, object]] = {
+    "gcstar_cgc": {
+        "implementation": "FastGcStar",
+        "variant": "cgc",
+        "exact_circular_shift_null": True,
+        "ridge": 1e-6,
+        "screen_alpha": 0.2,
+    },
+    "gcstar_fcgc": {
+        "implementation": "FastGcStar",
+        "variant": "fcgc",
+        "exact_circular_shift_null": True,
+        "ridge": 1e-6,
+        "screen_alpha": 0.2,
+    },
+    "fast_gcstar_cgc": {
+        "implementation": "FastGcStar",
+        "variant": "cgc",
+        "exact_circular_shift_null": True,
+        "ridge": 1e-6,
+        "screen_alpha": 0.2,
+    },
+    "fast_gcstar_fcgc": {
+        "implementation": "FastGcStar",
+        "variant": "fcgc",
+        "exact_circular_shift_null": True,
+        "ridge": 1e-6,
+        "screen_alpha": 0.2,
+    },
+    "legacy_gcstar_cgc": {"implementation": "GcStar", "variant": "cgc"},
+    "legacy_gcstar_fcgc": {"implementation": "GcStar", "variant": "fcgc"},
+    "pcmciplus": {"implementation": "Tigramite PCMCI+", "pc_alpha": 0.05},
+    "fullci": {"implementation": "Tigramite FullCI"},
+    "jpcmciplus": {
+        "implementation": "Tigramite JPCMCI+",
+        "pc_alpha": 0.05,
+        "node_classification": "all system",
+    },
+    "lpcmci": {
+        "implementation": "Tigramite LPCMCI",
+        "pc_alpha": 0.05,
+        "collapse": "all nonempty PAG marks",
+    },
 }
