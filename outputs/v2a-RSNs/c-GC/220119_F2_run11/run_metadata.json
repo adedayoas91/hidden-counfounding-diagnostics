@@ -1,0 +1,36 @@
+{
+  "saved_at": "2026-06-24T17:06:13.825397+00:00",
+  "recording": "220119_F2_run11",
+  "method_label": "c-GC",
+  "gcstar_method": "cgc",
+  "trace_shape_neurons_by_frames": [
+    100,
+    3601
+  ],
+  "p_values_requested": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "p_values_completed": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "last_completed_p_value": 5,
+  "gcstar_params": {
+    "method": "cgc",
+    "n_perm": 1000,
+    "n_lags": 1,
+    "alpha": 0.01,
+    "beta": 0.001,
+    "temporal": true,
+    "simulation": false,
+    "verbose": 0
+  },
+  "connectivity_pickle": "outputs/v2a-RSNs/c-GC/220119_F2_run11.pkl"
+}

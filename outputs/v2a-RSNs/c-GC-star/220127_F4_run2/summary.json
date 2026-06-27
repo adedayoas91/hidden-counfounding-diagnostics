@@ -1,0 +1,59 @@
+{
+  "dataset": "220127_F4_run2",
+  "file": "220127_F4_run2.pkl",
+  "n_nodes": 92,
+  "n_possible_edges": 8372,
+  "n_p_values": 5,
+  "T_obs": 0.023411371237458192,
+  "T_obs_depth": 2,
+  "T_minus_obs": 0.013736263736263736,
+  "T_minus_depth": 2,
+  "T_plus_obs": 0.009675107501194458,
+  "T_plus_depth": 2,
+  "edge_count_p1": 558,
+  "edge_count_pmax": 486,
+  "min_edge_count": 486,
+  "min_edge_depth": 5,
+  "first_step_drop_count": 34,
+  "first_step_drop_fraction": 0.06093189964157706,
+  "drop_to_min_count": 72,
+  "drop_to_min_fraction": 0.12903225806451613,
+  "final_drop_count": 72,
+  "final_drop_fraction": 0.12903225806451613,
+  "cumulative_D_p": 0.07716196846631629,
+  "cumulative_D_minus": 0.04288103201146679,
+  "cumulative_D_plus": 0.034280936454849496,
+  "mean_post_first_D_p": 0.0179168657429527,
+  "max_post_first_D_p": 0.019827998088867656,
+  "edge_counts": {
+    "1": 558,
+    "2": 524,
+    "3": 508,
+    "4": 506,
+    "5": 486
+  },
+  "D_p": {
+    "2": 0.023411371237458192,
+    "3": 0.019827998088867656,
+    "4": 0.016722408026755852,
+    "5": 0.017200191113234592
+  },
+  "D_parts": {
+    "2": {
+      "D_minus": 0.013736263736263736,
+      "D_plus": 0.009675107501194458
+    },
+    "3": {
+      "D_minus": 0.010869565217391304,
+      "D_plus": 0.00895843287147635
+    },
+    "4": {
+      "D_minus": 0.008480649784997612,
+      "D_plus": 0.008241758241758242
+    },
+    "5": {
+      "D_minus": 0.009794553272814142,
+      "D_plus": 0.007405637840420449
+    }
+  }
+}

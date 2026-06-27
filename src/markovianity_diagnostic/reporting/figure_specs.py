@@ -13,11 +13,12 @@ FIGURE_SPECS: dict[str, dict] = {
         "output_path": "nature_methods/figures/Figure1_DepthSelection.png",
         "caption": """
 **Conditioning-depth selection across v2a-RGC recordings.**
-Markovianity diagnostics are computed across conditioning depths p = 2–7 for c-GC and c-GC*
-methods applied to eight recordings from three zebrafish larvae.
-The instability metric D_p (fraction of graph inconsistencies) decreases with conditioning depth,
-indicating stabilization of causal estimates.
-Relative rule selects p = 3 as the point where D_p drops most steeply.
+For c-GC and c-GC* analyses with the reported graph horizon fixed at N_LAGS = 1,
+we sweep n_pasts = 1–7. The p = 1 graph is the minimal one-lag baseline, and
+diagnostic extra-history conditioning begins at p = 2. The instability metric
+D_p measures the normalized graph change from A_{p-1} to A_p, so D_2 quantifies
+the effect of adding the first past step beyond the one-lag baseline and D_3–D_7
+track subsequent stabilization or persistent depth sensitivity.
 """,
         "fig_type": "curve_plot",
     },
