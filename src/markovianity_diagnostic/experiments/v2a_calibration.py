@@ -20,7 +20,12 @@ from typing import Any
 import numpy as np
 from joblib import Parallel, delayed
 
-from .adapters import GcStar, make_gcstar_analyzer
+from .adapters import (
+    GcStar,
+    analyze_with_jpcmciplus,
+    analyze_with_pcmciplus,
+    make_gcstar_analyzer,
+)
 from .calibration import CalibrationResult, MovingBlockBootstrapNull
 from .graph_metrics import compute_graph_stability_metrics
 from .plotting import require_matplotlib
@@ -301,31 +306,61 @@ def make_v2a_surrogate_analyzer(
 ) -> SurrogateAnalyzer:
     """Build a surrogate analyzer matching the observed run configuration."""
 
-    params = run_metadata.get("gcstar_params", {})
-    required = {
-        "method",
-        "n_perm",
-        "n_lags",
-        "alpha",
-        "beta",
-        "temporal",
-        "simulation",
-    }
-    missing = sorted(required.difference(params))
-    if missing:
-        raise ValueError(f"run_metadata.gcstar_params is missing: {missing}")
+    gcstar_params = run_metadata.get("gcstar_params")
+    tigramite_params = run_metadata.get("tigramite_params")
+    if gcstar_params is not None:
+        required = {
+            "method",
+            "n_perm",
+            "n_lags",
+            "alpha",
+            "beta",
+            "temporal",
+            "simulation",
+        }
+        missing = sorted(required.difference(gcstar_params))
+        if missing:
+            raise ValueError(f"run_metadata.gcstar_params is missing: {missing}")
 
-    base_analyzer = make_gcstar_analyzer(
-        str(params["method"]),
-        alpha=float(params["alpha"]),
-        beta=float(params["beta"]),
-        n_perm=int(params["n_perm"]),
-        n_lags=int(params["n_lags"]),
-        temporal=bool(params["temporal"]),
-        verbose=int(params.get("verbose", 0)),
-        simulation=bool(params["simulation"]),
-        estimator_cls=estimator_cls,
-    )
+        base_analyzer = make_gcstar_analyzer(
+            str(gcstar_params["method"]),
+            alpha=float(gcstar_params["alpha"]),
+            beta=float(gcstar_params["beta"]),
+            n_perm=int(gcstar_params["n_perm"]),
+            n_lags=int(gcstar_params["n_lags"]),
+            temporal=bool(gcstar_params["temporal"]),
+            verbose=int(gcstar_params.get("verbose", 0)),
+            simulation=bool(gcstar_params["simulation"]),
+            estimator_cls=estimator_cls,
+        )
+    elif tigramite_params is not None:
+        required = {"algorithm", "pc_alpha"}
+        missing = sorted(required.difference(tigramite_params))
+        if missing:
+            raise ValueError(f"run_metadata.tigramite_params is missing: {missing}")
+
+        algorithm = str(tigramite_params["algorithm"]).lower()
+        tigramite_analyzers = {
+            "pcmciplus": analyze_with_pcmciplus,
+            "jpcmciplus": analyze_with_jpcmciplus,
+        }
+        try:
+            tigramite_analyzer = tigramite_analyzers[algorithm]
+        except KeyError as error:
+            raise ValueError(
+                f"Unsupported run_metadata.tigramite_params.algorithm: {algorithm!r}"
+            ) from error
+        pc_alpha = float(tigramite_params["pc_alpha"])
+
+        def base_analyzer(
+            X: np.ndarray,
+            p_values: list[int],
+        ) -> dict[int, np.ndarray]:
+            return tigramite_analyzer(X, p_values, pc_alpha=pc_alpha)
+
+    else:
+        raise ValueError("run_metadata must contain gcstar_params or tigramite_params")
+
     completion = run_metadata.get("inferred_completion")
     generated_depths = (
         {int(depth) for depth in completion.get("generated_depths", {})}

@@ -301,9 +301,18 @@ def _analyze_with_tigramite(
 
 
 def analyze_with_pcmciplus(
-    X: np.ndarray, p_values: list[int]
+    X: np.ndarray,
+    p_values: list[int],
+    *,
+    pc_alpha: float = 0.05,
 ) -> dict[int, np.ndarray]:
-    return _analyze_with_tigramite(X, p_values, algorithm="pcmciplus")
+    """Run PCMCI+ with a configurable conditional-independence threshold."""
+    return _analyze_with_tigramite(
+        X,
+        p_values,
+        algorithm="pcmciplus",
+        pc_alpha=pc_alpha,
+    )
 
 
 def analyze_with_fullci(
@@ -313,9 +322,18 @@ def analyze_with_fullci(
 
 
 def analyze_with_jpcmciplus(
-    X: np.ndarray, p_values: list[int]
+    X: np.ndarray,
+    p_values: list[int],
+    *,
+    pc_alpha: float = 0.05,
 ) -> dict[int, np.ndarray]:
-    return _analyze_with_tigramite(X, p_values, algorithm="jpcmciplus")
+    """Run JPCMCI+ with a configurable conditional-independence threshold."""
+    return _analyze_with_tigramite(
+        X,
+        p_values,
+        algorithm="jpcmciplus",
+        pc_alpha=pc_alpha,
+    )
 
 
 def analyze_with_lpcmci(

@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from markovianity_diagnostic.experiments import simulation_extensions
+from markovianity_diagnostic.experiments import adapters
 from markovianity_diagnostic.experiments.adapters import (
     FastGcStar,
     METHODS,
@@ -30,6 +31,40 @@ def test_tigramite_graph_collapses_to_target_by_source():
     adjacency = _collapse_tigramite_graph(graph, directed_only=True)
     assert adjacency[1, 0] == 1
     assert adjacency[0, 1] == 0
+
+
+def test_pcmciplus_adapter_forwards_pc_alpha(monkeypatch):
+    calls = []
+
+    def fake_analyzer(X, p_values, *, algorithm, pc_alpha):
+        calls.append((algorithm, pc_alpha))
+        return {p_values[0]: np.zeros((X.shape[1], X.shape[1]), dtype=int)}
+
+    monkeypatch.setattr(adapters, "_analyze_with_tigramite", fake_analyzer)
+    adapters.analyze_with_pcmciplus(
+        np.zeros((20, 3)),
+        [2],
+        pc_alpha=0.025,
+    )
+
+    assert calls == [("pcmciplus", 0.025)]
+
+
+def test_jpcmciplus_adapter_forwards_pc_alpha(monkeypatch):
+    calls = []
+
+    def fake_analyzer(X, p_values, *, algorithm, pc_alpha):
+        calls.append((algorithm, pc_alpha))
+        return {p_values[0]: np.zeros((X.shape[1], X.shape[1]), dtype=int)}
+
+    monkeypatch.setattr(adapters, "_analyze_with_tigramite", fake_analyzer)
+    adapters.analyze_with_jpcmciplus(
+        np.zeros((20, 3)),
+        [2],
+        pc_alpha=0.025,
+    )
+
+    assert calls == [("jpcmciplus", 0.025)]
 
 
 def test_recovery_metrics_exclude_diagonal_true_negatives():

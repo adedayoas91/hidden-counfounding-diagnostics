@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import markovianity_diagnostic.experiments.v2a_calibration as v2a_calibration
 from markovianity_diagnostic.experiments.v2a_calibration import (
     complete_inferred_depths,
     discover_complete_recordings,
@@ -155,12 +156,7 @@ def test_profile_input_and_discovery_use_isolated_output_namespace(tmp_path):
 
     assert recordings == ["fish_a"]
     assert calibration_input.connectivity_path == (
-        tmp_path
-        / "outputs"
-        / "v2a-RSNs"
-        / profile
-        / "c-GC"
-        / "fish_a.pkl"
+        tmp_path / "outputs" / "v2a-RSNs" / profile / "c-GC" / "fish_a.pkl"
     )
 
 
@@ -284,6 +280,55 @@ def test_surrogate_analyzer_runs_only_native_depths_before_completion():
     assert int(output[7].sum()) == 4
 
 
+@pytest.mark.parametrize(
+    ("algorithm", "analyzer_name"),
+    [
+        ("pcmciplus", "analyze_with_pcmciplus"),
+        ("jpcmciplus", "analyze_with_jpcmciplus"),
+    ],
+)
+def test_surrogate_analyzer_uses_recorded_tigramite_configuration(
+    monkeypatch,
+    algorithm,
+    analyzer_name,
+):
+    calls = []
+
+    def fake_analyzer(X, p_values, *, pc_alpha):
+        calls.append((X.copy(), list(p_values), pc_alpha))
+        return {depth: np.eye(X.shape[1], dtype=int) for depth in p_values}
+
+    monkeypatch.setattr(v2a_calibration, analyzer_name, fake_analyzer)
+    analyzer = make_v2a_surrogate_analyzer(
+        {
+            "tigramite_params": {
+                "algorithm": algorithm,
+                "pc_alpha": 0.025,
+            }
+        }
+    )
+    X = np.arange(60, dtype=float).reshape(20, 3)
+
+    output = analyzer(X, [1, 2, 3], 123)
+
+    assert [call[1] for call in calls] == [[1], [2], [3]]
+    assert all(call[2] == 0.025 for call in calls)
+    assert all(np.array_equal(call[0], X) for call in calls)
+    assert sorted(output) == [1, 2, 3]
+
+
+def test_surrogate_analyzer_rejects_unknown_tigramite_algorithm():
+    with pytest.raises(ValueError, match="Unsupported.*algorithm"):
+        make_v2a_surrogate_analyzer(
+            {
+                "tigramite_params": {
+                    "algorithm": "unknown",
+                    "pc_alpha": 0.05,
+                }
+            }
+        )
+
+
 def test_resumable_calibration_reuses_observed_pickles_and_checkpoints(tmp_path):
     X = np.arange(80, dtype=float).reshape(40, 2)
     observed = {
@@ -389,13 +434,15 @@ def test_dynamic_pointwise_plot_supports_eight_panels(tmp_path):
     assert output.read_bytes().startswith(b"\x89PNG")
 
 
-def test_notebook_uses_pickle_contract_instead_of_transition_columns():
-    notebook_path = (
-        Path(__file__).parents[1]
-        / "notebooks"
-        / "calibration"
-        / "bootstrap_null_v2a.ipynb"
-    )
+@pytest.mark.parametrize(
+    "method_dir",
+    ["c-GC", "c-GC-star", "pcmciplus", "jpcmciplus"],
+)
+def test_method_calibration_notebooks_are_isolated_and_use_pickle_contract(
+    method_dir,
+):
+    calibration_dir = Path(__file__).parents[1] / "notebooks" / "calibration"
+    notebook_path = calibration_dir / f"bootstrap_null_v2a_{method_dir}.ipynb"
     notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
     code_source = "\n".join(
         "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
@@ -403,22 +450,40 @@ def test_notebook_uses_pickle_contract_instead_of_transition_columns():
         if cell["cell_type"] == "code"
     )
 
+    assert f"METHOD_DIR = '{method_dir}'" in code_source
+    assert "METHOD_DIRS" not in code_source
     assert "load_v2a_calibration_input" in code_source
     assert "run_resumable_v2a_calibration" in code_source
     assert "transitions.csv" not in code_source
     assert "edge_count_p" not in code_source
     assert "hash(" not in code_source
     assert "ANALYSIS_PROFILE = V2A_ANALYSIS_PROFILE" in code_source
-    assert "P_VALUES = [1, 2, 3, 4, 5]" in code_source
+    assert "/ ANALYSIS_PROFILE\n    / METHOD_DIR" in code_source
+    assert "P_VALUES = [1, 2, 3, 4, 5, 6, 7]" in code_source
     assert "analysis_profile=ANALYSIS_PROFILE" in code_source
-    assert "'trace_selection': calibration_input.metadata['trace_selection']" in code_source
+    assert (
+        "'trace_selection': calibration_input.metadata['trace_selection']"
+        in code_source
+    )
+    assert "metadata.get('gcstar_params')" in code_source
+    assert "metadata.get('tigramite_params')" in code_source
+    assert "checkpoint_dir = OUTPUT_DIR / 'checkpoints' / recording" in code_source
+    assert "run_output_path = OUTPUT_DIR / recording / 'bootstrap.json'" in code_source
+    assert all(not cell.get("outputs") for cell in notebook["cells"])
 
 
-def test_connectivity_notebooks_use_shared_profile_and_five_depths():
+def test_aggregate_v2a_calibration_notebook_was_replaced():
+    calibration_dir = Path(__file__).parents[1] / "notebooks" / "calibration"
+
+    assert not (calibration_dir / "bootstrap_null_v2a.ipynb").exists()
+    assert len(list(calibration_dir.glob("bootstrap_null_v2a_*.ipynb"))) == 4
+
+
+def test_connectivity_notebooks_use_shared_profile_and_seven_depths():
     notebooks_root = Path(__file__).parents[1] / "notebooks" / "v2a-RSNs"
-    notebook_paths = sorted(notebooks_root.glob("c-GC*/*.ipynb"))
+    notebook_paths = sorted(notebooks_root.glob("c-GC*/[0-9]*.ipynb"))
 
-    assert len(notebook_paths) == 16
+    assert len(notebook_paths) == 8
     for notebook_path in notebook_paths:
         notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
         code_source = "\n".join(
@@ -429,8 +494,7 @@ def test_connectivity_notebooks_use_shared_profile_and_five_depths():
             if cell["cell_type"] == "code"
         )
 
-        assert "P_VALUES = [1, 2, 3, 4, 5]" in code_source, notebook_path
-        assert "P_VALUES = [1, 2, 3, 4, 5, 6, 7]" not in code_source, notebook_path
+        assert "P_VALUES = [1, 2, 3, 4, 5, 6, 7]" in code_source, notebook_path
         assert "analysis_profile=V2A_ANALYSIS_PROFILE" in code_source, notebook_path
         assert "get_v2a_selection_metadata" in code_source, notebook_path
         assert "'trace_selection': trace_selection" in code_source, notebook_path
@@ -443,7 +507,7 @@ def test_connectivity_notebooks_use_shared_profile_and_five_depths():
         ("real_data/v2a_edgewise_localization.ipynb", "V2A_ANALYSIS_PROFILE"),
         ("v2a-RSNs/v2a_depth_selection.ipynb", "V2A_OUTPUT_DIR ="),
         ("v2a-RSNs/v2a_edgewise_localization.ipynb", "V2A_ANALYSIS_PROFILE"),
-        ("v2a-RSNs/compare_c-GC_methods.ipynb", "V2A_OUTPUT_DIR ="),
+        ("v2a-RSNs/compare_all_methods.ipynb", "V2A_OUTPUT_DIR ="),
     ],
 )
 def test_v2a_downstream_notebooks_use_profile_namespace(
@@ -467,12 +531,12 @@ def test_v2a_profile_notebook_code_cells_parse():
     notebooks_root = Path(__file__).parents[1] / "notebooks"
     notebook_paths = [
         *sorted((notebooks_root / "v2a-RSNs").glob("c-GC*/*.ipynb")),
-        notebooks_root / "calibration" / "bootstrap_null_v2a.ipynb",
+        *sorted((notebooks_root / "calibration").glob("bootstrap_null_v2a_*.ipynb")),
         notebooks_root / "real_data" / "v2a_depth_selection.ipynb",
         notebooks_root / "real_data" / "v2a_edgewise_localization.ipynb",
         notebooks_root / "v2a-RSNs" / "v2a_depth_selection.ipynb",
         notebooks_root / "v2a-RSNs" / "v2a_edgewise_localization.ipynb",
-        notebooks_root / "v2a-RSNs" / "compare_c-GC_methods.ipynb",
+        notebooks_root / "v2a-RSNs" / "compare_all_methods.ipynb",
     ]
 
     for notebook_path in notebook_paths:
