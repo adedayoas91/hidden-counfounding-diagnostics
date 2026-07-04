@@ -3,40 +3,44 @@
   "file": "220127_F4_run2.pkl",
   "n_nodes": 92,
   "n_possible_edges": 8372,
-  "n_p_values": 5,
+  "n_p_values": 7,
   "T_obs": 0.029861442904921164,
   "T_obs_depth": 2,
   "T_minus_obs": 0.020066889632107024,
   "T_minus_depth": 2,
-  "T_plus_obs": 0.009794553272814142,
-  "T_plus_depth": 2,
+  "T_plus_obs": 0.010391782130912566,
+  "T_plus_depth": 7,
   "edge_count_p1": 608,
-  "edge_count_pmax": 508,
+  "edge_count_pmax": 545,
   "min_edge_count": 508,
   "min_edge_depth": 5,
   "first_step_drop_count": 86,
   "first_step_drop_fraction": 0.14144736842105263,
   "drop_to_min_count": 100,
   "drop_to_min_fraction": 0.16447368421052633,
-  "final_drop_count": 100,
-  "final_drop_fraction": 0.16447368421052633,
-  "cumulative_D_p": 0.08193979933110368,
-  "cumulative_D_minus": 0.04694218824653607,
-  "cumulative_D_plus": 0.03499761108456761,
-  "mean_post_first_D_p": 0.017359452142060836,
+  "final_drop_count": 63,
+  "final_drop_fraction": 0.10361842105263158,
+  "cumulative_D_p": 0.11765408504538939,
+  "cumulative_D_minus": 0.06258958432871477,
+  "cumulative_D_plus": 0.05506450071667463,
+  "mean_post_first_D_p": 0.017558528428093644,
   "max_post_first_D_p": 0.018752986144290492,
   "edge_counts": {
     "1": 608,
     "2": 522,
     "3": 509,
     "4": 510,
-    "5": 508
+    "5": 508,
+    "6": 522,
+    "7": 545
   },
   "D_p": {
     "2": 0.029861442904921164,
     "3": 0.018752986144290492,
     "4": 0.016125179168657428,
-    "5": 0.017200191113234592
+    "5": 0.017200191113234592,
+    "6": 0.017677974199713332,
+    "7": 0.018036311514572384
   },
   "D_parts": {
     "2": {
@@ -54,6 +58,14 @@
     "5": {
       "D_minus": 0.00871954132823698,
       "D_plus": 0.008480649784997612
+    },
+    "6": {
+      "D_minus": 0.008002866698518872,
+      "D_plus": 0.009675107501194458
+    },
+    "7": {
+      "D_minus": 0.007644529383659818,
+      "D_plus": 0.010391782130912566
     }
   }
 }

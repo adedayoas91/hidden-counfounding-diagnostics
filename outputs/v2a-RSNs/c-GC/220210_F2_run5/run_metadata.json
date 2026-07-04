@@ -1,5 +1,5 @@
 {
-  "saved_at": "2026-06-25T14:43:57.748179+00:00",
+  "saved_at": "2026-06-27T14:22:55.123585+00:00",
   "recording": "220210_F2_run5",
   "method_label": "c-GC",
   "gcstar_method": "cgc",
@@ -12,16 +12,20 @@
     2,
     3,
     4,
-    5
+    5,
+    6,
+    7
   ],
   "p_values_completed": [
     1,
     2,
     3,
     4,
-    5
+    5,
+    6,
+    7
   ],
-  "last_completed_p_value": 5,
+  "last_completed_p_value": 7,
   "gcstar_params": {
     "method": "cgc",
     "n_perm": 1000,
