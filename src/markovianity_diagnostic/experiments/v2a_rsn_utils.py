@@ -8,6 +8,7 @@ Provides:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import datetime
@@ -20,13 +21,17 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-V2A_HIGH_DIMENSION_SUBSETS = {
-    '220210_F1_run6': {
-        'n_emitters': 35,
-        'n_receivers': 65,
-        'expected_total': 100,
-    },
-}
+V2A_ANALYSIS_PROFILE = 'n50-e18-r32'
+V2A_PROFILE_RECORDINGS = frozenset({
+    '220119_F2_run11',
+    '220127_F4_run2',
+    '220210_F1_run6',
+    '220210_F2_run5',
+})
+V2A_PROFILE_N_EMITTERS = 18
+V2A_PROFILE_N_RECEIVERS = 32
+V2A_PROFILE_EXPECTED_TOTAL = 50
+V2A_SELECTION_BASE_SEED = 20260704
 
 
 # ============================================================================
@@ -471,54 +476,145 @@ def _load_v2a_role_cell_indices(
     return emitter, receiver
 
 
+def _ordered_unique_indices(indices: np.ndarray) -> np.ndarray:
+    """Return integer indices without duplicates while preserving file order."""
+    return np.asarray(list(dict.fromkeys(indices.tolist())), dtype=int)
+
+
+def _v2a_selection_seed(recording_id: str) -> int:
+    """Derive a stable recording-specific seed for the fixed analysis profile."""
+    payload = f'{V2A_SELECTION_BASE_SEED}|{recording_id}'
+    digest = hashlib.sha256(payload.encode('utf-8')).digest()
+    return int.from_bytes(digest[:4], byteorder='big', signed=False)
+
+
+def _select_v2a_role_indices(
+    recording_dir: Path,
+    recording_id: str,
+) -> tuple[np.ndarray, np.ndarray, int | None, str]:
+    """Return selected emitter/receiver indices and selection provenance."""
+    emitter, receiver = _load_v2a_role_cell_indices(recording_dir, recording_id)
+    emitter = _ordered_unique_indices(emitter)
+    receiver = _ordered_unique_indices(receiver)
+
+    if recording_id not in V2A_PROFILE_RECORDINGS:
+        emitter_set = set(emitter.tolist())
+        selected_receiver = np.asarray(
+            [index for index in receiver if int(index) not in emitter_set],
+            dtype=int,
+        )
+        return emitter, selected_receiver, None, 'all_identified_role_union'
+
+    if (
+        emitter.size < V2A_PROFILE_N_EMITTERS
+        or receiver.size < V2A_PROFILE_N_RECEIVERS
+    ):
+        raise ValueError(
+            f"{recording_id} requires at least {V2A_PROFILE_N_EMITTERS} emitters "
+            f"and {V2A_PROFILE_N_RECEIVERS} receivers for analysis profile "
+            f"{V2A_ANALYSIS_PROFILE}, got {emitter.size} emitters and "
+            f"{receiver.size} receivers."
+        )
+
+    overlap = np.intersect1d(emitter, receiver)
+    if overlap.size:
+        raise ValueError(
+            f"{recording_id} has {overlap.size} cells assigned to both emitter "
+            "and receiver roles; the fixed 18/32 stratified sample requires "
+            "disjoint role pools."
+        )
+
+    seed = _v2a_selection_seed(recording_id)
+    rng = np.random.default_rng(seed)
+    emitter_positions = np.sort(
+        rng.choice(
+            emitter.size,
+            size=V2A_PROFILE_N_EMITTERS,
+            replace=False,
+        )
+    )
+    receiver_positions = np.sort(
+        rng.choice(
+            receiver.size,
+            size=V2A_PROFILE_N_RECEIVERS,
+            replace=False,
+        )
+    )
+    return (
+        emitter[emitter_positions],
+        receiver[receiver_positions],
+        seed,
+        'seeded_stratified_without_replacement',
+    )
+
+
 def get_v2a_selected_cell_indices(recording_dir: Path, recording_id: str) -> np.ndarray:
     """Load selected cell indices for a v2a-RSN recording.
 
-    Returns ordered unique indices of identified neurons. The high-dimensional
-    ``220210_F1_run6`` recording is deterministically reduced to 35 emitters and
-    65 receivers so the same 100-cell subset is used in every notebook run.
+    The four biological analysis recordings use the deterministic
+    ``n50-e18-r32`` profile. Other recordings retain the ordered union behavior
+    used by lightweight fixtures and exploratory data.
     """
-    emitter, receiver = _load_v2a_role_cell_indices(recording_dir, recording_id)
-
-    subset_config = V2A_HIGH_DIMENSION_SUBSETS.get(recording_id)
-    if subset_config is not None:
-        n_emitters = int(subset_config['n_emitters'])
-        n_receivers = int(subset_config['n_receivers'])
-        expected_total = int(subset_config['expected_total'])
-
-        if emitter.size < n_emitters or receiver.size < n_receivers:
+    selected_emitter, selected_receiver, seed, strategy = _select_v2a_role_indices(
+        recording_dir,
+        recording_id,
+    )
+    selected = np.concatenate([selected_emitter, selected_receiver])
+    if recording_id in V2A_PROFILE_RECORDINGS:
+        if selected.size != V2A_PROFILE_EXPECTED_TOTAL:
             raise ValueError(
-                f"{recording_id} requires at least {n_emitters} emitters and "
-                f"{n_receivers} receivers for the configured subset, got "
-                f"{emitter.size} emitters and {receiver.size} receivers."
+                f"{recording_id} profile expected {V2A_PROFILE_EXPECTED_TOTAL} "
+                f"unique cells, got {selected.size}."
             )
-
-        selected_emitter = emitter[:n_emitters]
-        selected_receiver = receiver[:n_receivers]
-        ordered_unique = list(
-            dict.fromkeys(
-                np.concatenate([selected_emitter, selected_receiver]).tolist()
-            )
-        )
-        if len(ordered_unique) != expected_total:
-            raise ValueError(
-                f"{recording_id} subset expected {expected_total} unique cells "
-                f"from {n_emitters} emitters and {n_receivers} receivers, got "
-                f"{len(ordered_unique)}. Check emitter/receiver overlap before running."
-            )
-
         logger.info(
-            "Using deterministic %s subset: %d emitters + %d receivers = %d cells",
+            "Using %s profile for %s: %d emitters + %d receivers (seed=%d)",
+            V2A_ANALYSIS_PROFILE,
             recording_id,
-            n_emitters,
-            n_receivers,
-            expected_total,
+            selected_emitter.size,
+            selected_receiver.size,
+            seed,
         )
-        return np.asarray(ordered_unique, dtype=int)
+    else:
+        logger.info(
+            "Using %s selection for %s: %d identified cells",
+            strategy,
+            recording_id,
+            selected.size,
+        )
+    return selected
 
-    # Return ordered unique indices (emitter first, then new receiver indices)
-    ordered_unique = list(dict.fromkeys(np.concatenate([emitter, receiver]).tolist()))
-    return np.asarray(ordered_unique, dtype=int)
+
+def get_v2a_selection_metadata(
+    recording_dir: Path,
+    recording_id: str,
+) -> dict[str, Any]:
+    """Return JSON-safe cell-selection provenance for run metadata."""
+    selected_emitter, selected_receiver, seed, strategy = _select_v2a_role_indices(
+        recording_dir,
+        recording_id,
+    )
+    selected = np.concatenate([selected_emitter, selected_receiver])
+    uses_profile = recording_id in V2A_PROFILE_RECORDINGS
+    return {
+        'analysis_profile': V2A_ANALYSIS_PROFILE if uses_profile else None,
+        'selection_strategy': strategy,
+        'selection_seed': seed,
+        'selection_base_seed': V2A_SELECTION_BASE_SEED if uses_profile else None,
+        'requested_emitter_fraction': 0.35 if uses_profile else None,
+        'requested_receiver_fraction': 0.65 if uses_profile else None,
+        'realized_emitter_fraction': (
+            float(selected_emitter.size / selected.size) if selected.size else None
+        ),
+        'realized_receiver_fraction': (
+            float(selected_receiver.size / selected.size) if selected.size else None
+        ),
+        'n_emitters': int(selected_emitter.size),
+        'n_receivers': int(selected_receiver.size),
+        'expected_total': int(selected.size),
+        'selected_emitter_indices': selected_emitter.tolist(),
+        'selected_receiver_indices': selected_receiver.tolist(),
+        'selected_cell_indices': selected.tolist(),
+    }
 
 
 def get_v2a_bad_frame_indices(recording_dir: Path) -> np.ndarray:
@@ -693,17 +789,24 @@ def setup_recording_paths(
     project_root: Path,
     recording_name: str,
     method_dir: str,  # 'c-GC' or 'c-GC-star'
+    *,
+    analysis_profile: str | None = None,
 ) -> dict[str, Path]:
     """Set up all required paths for a recording-specific notebook run.
 
     Returns dict with keys: data_dir, output_dir, checkpoint_file, result_log_file
     """
     data_dir = project_root / 'data' / 'v2a-RSNs' / recording_name
-    output_dir = project_root / 'outputs' / 'v2a-RSNs' / method_dir / recording_name
+    method_output_dir = project_root / 'outputs' / 'v2a-RSNs'
+    if analysis_profile is not None:
+        method_output_dir /= analysis_profile
+    method_output_dir /= method_dir
+    output_dir = method_output_dir / recording_name
     output_dir.mkdir(parents=True, exist_ok=True)
 
     return {
         'data_dir': data_dir,
+        'method_output_dir': method_output_dir,
         'output_dir': output_dir,
         'checkpoint_file': output_dir / '.checkpoint.json',
         'result_log_file': output_dir / 'processing_log.jsonl',
@@ -728,6 +831,12 @@ def find_pkl_file(data_dir: Path) -> Path:
 
 
 __all__ = [
+    'V2A_ANALYSIS_PROFILE',
+    'V2A_PROFILE_RECORDINGS',
+    'V2A_PROFILE_N_EMITTERS',
+    'V2A_PROFILE_N_RECEIVERS',
+    'V2A_PROFILE_EXPECTED_TOTAL',
+    'V2A_SELECTION_BASE_SEED',
     'load_checkpoint',
     'save_checkpoint',
     'log_processing_run',
@@ -744,6 +853,7 @@ __all__ = [
     'build_v2a_transition_df',
     'v2a_summary_json_payload',
     'get_v2a_selected_cell_indices',
+    'get_v2a_selection_metadata',
     'get_v2a_bad_frame_indices',
     'subset_v2a_cells',
     'drop_v2a_bad_frames',

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
@@ -18,6 +19,9 @@ from markovianity_diagnostic.experiments.v2a_calibration import (
     plot_v2a_pointwise_grid,
     run_resumable_v2a_calibration,
 )
+from markovianity_diagnostic.experiments.v2a_rsn_utils import (
+    get_v2a_selection_metadata,
+)
 
 
 def _write_recording_fixture(
@@ -26,6 +30,7 @@ def _write_recording_fixture(
     recording: str = "fish_a",
     method_dir: str = "c-GC",
     p_values: tuple[int, ...] = (1, 2, 3),
+    analysis_profile: str | None = None,
 ) -> dict[int, np.ndarray]:
     data_dir = project_root / "data" / "v2a-RSNs" / recording
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -45,15 +50,21 @@ def _write_recording_fixture(
         )
         for p_value in p_values
     }
-    method_output = project_root / "outputs" / "v2a-RSNs" / method_dir
+    method_output = project_root / "outputs" / "v2a-RSNs"
+    if analysis_profile is not None:
+        method_output /= analysis_profile
+    method_output /= method_dir
     run_output = method_output / recording
     run_output.mkdir(parents=True, exist_ok=True)
     pd.to_pickle(adjacencies, method_output / f"{recording}.pkl")
+    trace_selection = get_v2a_selection_metadata(data_dir, recording)
     (run_output / "run_metadata.json").write_text(
         json.dumps(
             {
                 "recording": recording,
                 "method_label": method_dir,
+                "analysis_profile": analysis_profile,
+                "trace_selection": trace_selection,
                 "gcstar_params": {
                     "method": "cgc" if method_dir == "c-GC" else "fcgc",
                     "n_perm": 5,
@@ -112,6 +123,74 @@ def test_discover_recordings_requires_complete_pickles_for_every_method(tmp_path
             tmp_path,
             method_dirs=["c-GC", "c-GC-star"],
             p_values=[1, 2, 3],
+        )
+
+
+def test_profile_input_and_discovery_use_isolated_output_namespace(tmp_path):
+    profile = "n50-e18-r32"
+    _write_recording_fixture(
+        tmp_path,
+        method_dir="c-GC",
+        analysis_profile=profile,
+    )
+    _write_recording_fixture(
+        tmp_path,
+        method_dir="c-GC-star",
+        analysis_profile=profile,
+    )
+
+    recordings = discover_complete_recordings(
+        tmp_path,
+        method_dirs=["c-GC", "c-GC-star"],
+        p_values=[1, 2, 3],
+        analysis_profile=profile,
+    )
+    calibration_input = load_v2a_calibration_input(
+        tmp_path,
+        recording="fish_a",
+        method_dir="c-GC",
+        p_values=[1, 2, 3],
+        analysis_profile=profile,
+    )
+
+    assert recordings == ["fish_a"]
+    assert calibration_input.connectivity_path == (
+        tmp_path
+        / "outputs"
+        / "v2a-RSNs"
+        / profile
+        / "c-GC"
+        / "fish_a.pkl"
+    )
+
+
+def test_profile_input_rejects_mismatched_trace_selection_metadata(tmp_path):
+    profile = "n50-e18-r32"
+    _write_recording_fixture(
+        tmp_path,
+        method_dir="c-GC",
+        analysis_profile=profile,
+    )
+    metadata_path = (
+        tmp_path
+        / "outputs"
+        / "v2a-RSNs"
+        / profile
+        / "c-GC"
+        / "fish_a"
+        / "run_metadata.json"
+    )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["trace_selection"]["selected_cell_indices"] = [2, 1, 0]
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="cell selection does not match"):
+        load_v2a_calibration_input(
+            tmp_path,
+            recording="fish_a",
+            method_dir="c-GC",
+            p_values=[1, 2, 3],
+            analysis_profile=profile,
         )
 
 
@@ -329,3 +408,81 @@ def test_notebook_uses_pickle_contract_instead_of_transition_columns():
     assert "transitions.csv" not in code_source
     assert "edge_count_p" not in code_source
     assert "hash(" not in code_source
+    assert "ANALYSIS_PROFILE = V2A_ANALYSIS_PROFILE" in code_source
+    assert "P_VALUES = [1, 2, 3, 4, 5]" in code_source
+    assert "analysis_profile=ANALYSIS_PROFILE" in code_source
+    assert "'trace_selection': calibration_input.metadata['trace_selection']" in code_source
+
+
+def test_connectivity_notebooks_use_shared_profile_and_five_depths():
+    notebooks_root = Path(__file__).parents[1] / "notebooks" / "v2a-RSNs"
+    notebook_paths = sorted(notebooks_root.glob("c-GC*/*.ipynb"))
+
+    assert len(notebook_paths) == 16
+    for notebook_path in notebook_paths:
+        notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+        code_source = "\n".join(
+            "".join(cell["source"])
+            if isinstance(cell["source"], list)
+            else cell["source"]
+            for cell in notebook["cells"]
+            if cell["cell_type"] == "code"
+        )
+
+        assert "P_VALUES = [1, 2, 3, 4, 5]" in code_source, notebook_path
+        assert "P_VALUES = [1, 2, 3, 4, 5, 6, 7]" not in code_source, notebook_path
+        assert "analysis_profile=V2A_ANALYSIS_PROFILE" in code_source, notebook_path
+        assert "get_v2a_selection_metadata" in code_source, notebook_path
+        assert "'trace_selection': trace_selection" in code_source, notebook_path
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "required_marker"),
+    [
+        ("real_data/v2a_depth_selection.ipynb", "V2A_OUTPUT_DIR ="),
+        ("real_data/v2a_edgewise_localization.ipynb", "V2A_ANALYSIS_PROFILE"),
+        ("v2a-RSNs/v2a_depth_selection.ipynb", "V2A_OUTPUT_DIR ="),
+        ("v2a-RSNs/v2a_edgewise_localization.ipynb", "V2A_ANALYSIS_PROFILE"),
+        ("v2a-RSNs/compare_c-GC_methods.ipynb", "V2A_OUTPUT_DIR ="),
+    ],
+)
+def test_v2a_downstream_notebooks_use_profile_namespace(
+    relative_path,
+    required_marker,
+):
+    notebook_path = Path(__file__).parents[1] / "notebooks" / relative_path
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    code_source = "\n".join(
+        "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+
+    assert required_marker in code_source
+    assert "/ 'outputs' / 'v2a-RSNs' / 'c-GC'" not in code_source
+    assert "/ 'outputs' / 'v2a-RSNs' / 'c-GC-star'" not in code_source
+
+
+def test_v2a_profile_notebook_code_cells_parse():
+    notebooks_root = Path(__file__).parents[1] / "notebooks"
+    notebook_paths = [
+        *sorted((notebooks_root / "v2a-RSNs").glob("c-GC*/*.ipynb")),
+        notebooks_root / "calibration" / "bootstrap_null_v2a.ipynb",
+        notebooks_root / "real_data" / "v2a_depth_selection.ipynb",
+        notebooks_root / "real_data" / "v2a_edgewise_localization.ipynb",
+        notebooks_root / "v2a-RSNs" / "v2a_depth_selection.ipynb",
+        notebooks_root / "v2a-RSNs" / "v2a_edgewise_localization.ipynb",
+        notebooks_root / "v2a-RSNs" / "compare_c-GC_methods.ipynb",
+    ]
+
+    for notebook_path in notebook_paths:
+        notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+        for index, cell in enumerate(notebook["cells"]):
+            if cell["cell_type"] != "code":
+                continue
+            source = (
+                "".join(cell["source"])
+                if isinstance(cell["source"], list)
+                else cell["source"]
+            )
+            ast.parse(source, filename=f"{notebook_path.name}:cell-{index}")

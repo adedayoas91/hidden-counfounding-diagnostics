@@ -7,8 +7,8 @@ FIGURE_SPECS: dict[str, dict] = {
     "Figure1_DepthSelection": {
         "name": "Figure1_DepthSelection",
         "source_data_paths": [
-            "outputs/v2a-RSNs/depth_selection/depth_selection.json",
-            "outputs/v2a-RSNs/depth_selection/depth_selection_plot.png",
+            "outputs/v2a-RSNs/n50-e18-r32/depth_selection/depth_selection.json",
+            "outputs/v2a-RSNs/n50-e18-r32/depth_selection/depth_selection_plot.png",
         ],
         "output_path": "nature_methods/figures/Figure1_DepthSelection.png",
         "caption": """
@@ -25,7 +25,7 @@ track subsequent stabilization or persistent depth sensitivity.
     "Figure2_EdgeInstability": {
         "name": "Figure2_EdgeInstability",
         "source_data_paths": [
-            "outputs/v2a-RSNs/edge_localization/manifest.json",
+            "outputs/v2a-RSNs/n50-e18-r32/edge_localization/manifest.json",
         ],
         "output_path": "nature_methods/figures/Figure2_EdgeInstability.png",
         "caption": """

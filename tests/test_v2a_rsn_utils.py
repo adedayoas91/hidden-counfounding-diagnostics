@@ -4,12 +4,17 @@ import json
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from markovianity_diagnostic.experiments.v2a_rsn_utils import (
+    V2A_ANALYSIS_PROFILE,
+    V2A_PROFILE_RECORDINGS,
     completed_p_values,
+    get_v2a_selection_metadata,
     get_v2a_selected_cell_indices,
     load_adjacency_checkpoint,
     save_adjacency_checkpoint,
+    setup_recording_paths,
     subset_v2a_cells,
     upsert_method_outputs,
     upsert_summary_json,
@@ -96,32 +101,74 @@ def test_get_v2a_selected_cell_indices_uses_ordered_role_union(tmp_path):
     np.testing.assert_array_equal(selected, np.array([5, 1, 3, 8, 2]))
 
 
-def test_220210_f1_run6_indices_are_reduced_to_35_emitters_65_receivers(tmp_path):
-    """The high-dimensional v2a recording should use the configured 100-cell subset."""
+@pytest.mark.parametrize("recording_id", sorted(V2A_PROFILE_RECORDINGS))
+def test_profile_recordings_use_reproducible_random_18_32_role_sample(
+    tmp_path,
+    recording_id,
+):
+    """Every biological recording should use the same seeded 50-cell profile."""
+    emitters = np.arange(0, 80)
+    receivers = np.arange(100, 180)
+    np.save(tmp_path / f"{recording_id}_emitter_cells.npy", emitters)
+    np.save(tmp_path / f"{recording_id}_receiver_cells.npy", receivers)
+
+    first = get_v2a_selected_cell_indices(tmp_path, recording_id)
+    second = get_v2a_selected_cell_indices(tmp_path, recording_id)
+    metadata = get_v2a_selection_metadata(tmp_path, recording_id)
+
+    assert first.shape == (50,)
+    np.testing.assert_array_equal(first, second)
+    assert np.isin(first[:18], emitters).all()
+    assert np.isin(first[18:], receivers).all()
+    assert not np.array_equal(first[:18], emitters[:18])
+    assert not np.array_equal(first[18:], receivers[:32])
+    assert metadata["analysis_profile"] == V2A_ANALYSIS_PROFILE
+    assert metadata["selection_strategy"] == "seeded_stratified_without_replacement"
+    assert metadata["n_emitters"] == 18
+    assert metadata["n_receivers"] == 32
+    assert metadata["expected_total"] == 50
+    assert isinstance(metadata["selection_seed"], int)
+    assert metadata["selected_emitter_indices"] == first[:18].tolist()
+    assert metadata["selected_receiver_indices"] == first[18:].tolist()
+    assert metadata["selected_cell_indices"] == first.tolist()
+
+
+def test_profile_trace_subset_has_50_rows(tmp_path):
+    """Trace subsetting should apply the seeded 18-emitter/32-receiver sample."""
     recording_id = "220210_F1_run6"
-    emitters = np.arange(0, 201)
-    receivers = np.arange(300, 511)
-    np.save(tmp_path / "220210_F1_F1_run6_emitter_cells.npy", emitters)
-    np.save(tmp_path / "220210_F1_F1_run6_receiver_cells.npy", receivers)
-
-    selected = get_v2a_selected_cell_indices(tmp_path, recording_id)
-
-    expected = np.concatenate([emitters[:35], receivers[:65]])
-    assert selected.shape == (100,)
-    np.testing.assert_array_equal(selected, expected)
-
-
-def test_220210_f1_run6_trace_subset_has_100_rows(tmp_path):
-    """Trace subsetting should apply the same deterministic high-dimensional subset."""
-    recording_id = "220210_F1_run6"
-    emitters = np.arange(0, 201)
-    receivers = np.arange(300, 511)
-    traces = np.arange(600 * 4).reshape(600, 4)
+    emitters = np.arange(0, 80)
+    receivers = np.arange(100, 180)
+    traces = np.arange(200 * 4).reshape(200, 4)
     np.save(tmp_path / "220210_F1_F1_run6_emitter_cells.npy", emitters)
     np.save(tmp_path / "220210_F1_F1_run6_receiver_cells.npy", receivers)
 
     subset = subset_v2a_cells(traces, tmp_path, recording_id)
+    selected = get_v2a_selected_cell_indices(tmp_path, recording_id)
 
-    expected_indices = np.concatenate([emitters[:35], receivers[:65]])
-    assert subset.shape == (100, 4)
-    np.testing.assert_array_equal(subset, traces[expected_indices, :])
+    assert subset.shape == (50, 4)
+    np.testing.assert_array_equal(subset, traces[selected, :])
+
+
+def test_profile_selection_rejects_insufficient_role_counts(tmp_path):
+    """The fixed profile must fail instead of silently changing its role ratio."""
+    recording_id = "220119_F2_run11"
+    np.save(tmp_path / f"{recording_id}_emitter_cells.npy", np.arange(17))
+    np.save(tmp_path / f"{recording_id}_receiver_cells.npy", np.arange(100, 140))
+
+    with pytest.raises(ValueError, match="at least 18 emitters and 32 receivers"):
+        get_v2a_selected_cell_indices(tmp_path, recording_id)
+
+
+def test_setup_recording_paths_isolates_profile_outputs(tmp_path):
+    paths = setup_recording_paths(
+        tmp_path,
+        "220119_F2_run11",
+        "c-GC",
+        analysis_profile=V2A_ANALYSIS_PROFILE,
+    )
+
+    expected_method_dir = (
+        tmp_path / "outputs" / "v2a-RSNs" / V2A_ANALYSIS_PROFILE / "c-GC"
+    )
+    assert paths["method_output_dir"] == expected_method_dir
+    assert paths["output_dir"] == expected_method_dir / "220119_F2_run11"

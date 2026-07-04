@@ -131,7 +131,10 @@ def generate_all_tables(output_base_dir: str) -> list[dict[str, Any]]:
     table_name = "Table1_DepthSelection"
     try:
         df = export_depth_selection_table(
-            str(base_path / "outputs/v2a-RSNs/depth_selection/depth_selection.json")
+            str(
+                base_path
+                / "outputs/v2a-RSNs/n50-e18-r32/depth_selection/depth_selection.json"
+            )
         )
         if not df.empty:
             csv_path = tables_dir / f"{table_name}.csv"

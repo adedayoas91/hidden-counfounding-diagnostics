@@ -26,6 +26,7 @@ from .graph_metrics import compute_graph_stability_metrics
 from .plotting import require_matplotlib
 from .v2a_rsn_utils import (
     binarize_adjacencies,
+    get_v2a_selection_metadata,
     load_adjacency_checkpoint,
     load_and_filter_traces,
     save_adjacency_checkpoint,
@@ -50,6 +51,7 @@ class V2ACalibrationInput:
     observed_adjacencies: dict[int, np.ndarray]
     metadata: dict[str, Any]
     connectivity_path: Path
+    analysis_profile: str | None = None
 
 
 @dataclass(frozen=True)
@@ -136,6 +138,7 @@ def discover_complete_recordings(
     *,
     method_dirs: Sequence[str],
     p_values: Sequence[int],
+    analysis_profile: str | None = None,
 ) -> list[str]:
     """Find recordings with a complete pickle for every requested method."""
 
@@ -146,16 +149,21 @@ def discover_complete_recordings(
 
     recordings: set[str] = set()
     for method_dir in methods:
-        method_root = project_root / "outputs" / "v2a-RSNs" / method_dir
+        method_root = project_root / "outputs" / "v2a-RSNs"
+        if analysis_profile is not None:
+            method_root /= analysis_profile
+        method_root /= method_dir
         recordings.update(path.stem for path in method_root.glob("*.pkl"))
     if not recordings:
         raise FileNotFoundError("No v2a-RSN connectivity pickles were found")
 
     for recording in sorted(recordings):
         for method_dir in methods:
-            path = (
-                project_root / "outputs" / "v2a-RSNs" / method_dir / f"{recording}.pkl"
-            )
+            path = project_root / "outputs" / "v2a-RSNs"
+            if analysis_profile is not None:
+                path /= analysis_profile
+            path /= method_dir
+            path /= f"{recording}.pkl"
             if not path.exists():
                 raise FileNotFoundError(
                     f"Missing connectivity pickle for {method_dir}/{recording}: {path}"
@@ -174,27 +182,46 @@ def load_v2a_calibration_input(
     recording: str,
     method_dir: str,
     p_values: Sequence[int],
+    analysis_profile: str | None = None,
 ) -> V2ACalibrationInput:
     """Load observed pickles and raw traces without reading transition tables."""
 
     project_root = Path(project_root)
-    connectivity_path = (
-        project_root / "outputs" / "v2a-RSNs" / method_dir / f"{recording}.pkl"
-    )
-    metadata_path = (
-        project_root
-        / "outputs"
-        / "v2a-RSNs"
-        / method_dir
-        / recording
-        / "run_metadata.json"
-    )
+    method_output_dir = project_root / "outputs" / "v2a-RSNs"
+    if analysis_profile is not None:
+        method_output_dir /= analysis_profile
+    method_output_dir /= method_dir
+    connectivity_path = method_output_dir / f"{recording}.pkl"
+    metadata_path = method_output_dir / recording / "run_metadata.json"
     recording_dir = project_root / "data" / "v2a-RSNs" / recording
 
     if not connectivity_path.exists():
         raise FileNotFoundError(f"Missing observed connectivity: {connectivity_path}")
     if not metadata_path.exists():
         raise FileNotFoundError(f"Missing run metadata: {metadata_path}")
+
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if analysis_profile is not None:
+        recorded_profile = metadata.get("analysis_profile")
+        if recorded_profile != analysis_profile:
+            raise ValueError(
+                f"{method_dir}/{recording} metadata has analysis_profile "
+                f"{recorded_profile!r}; expected {analysis_profile!r}"
+            )
+        expected_selection = get_v2a_selection_metadata(recording_dir, recording)
+        recorded_selection = metadata.get("trace_selection")
+        if not isinstance(recorded_selection, dict):
+            raise ValueError(
+                f"{method_dir}/{recording} metadata is missing trace_selection"
+            )
+        if (
+            recorded_selection.get("selected_cell_indices")
+            != expected_selection["selected_cell_indices"]
+        ):
+            raise ValueError(
+                f"{method_dir}/{recording} metadata cell selection does not match "
+                "the current deterministic trace selection"
+            )
 
     traces = load_and_filter_traces(recording_dir, recording)
     X = np.asarray(traces, dtype=float).T
@@ -204,8 +231,6 @@ def load_v2a_calibration_input(
         n_nodes=X.shape[1],
         label=f"{method_dir}/{recording}",
     )
-    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-
     return V2ACalibrationInput(
         recording=recording,
         method_dir=method_dir,
@@ -213,6 +238,7 @@ def load_v2a_calibration_input(
         observed_adjacencies=observed,
         metadata=metadata,
         connectivity_path=connectivity_path,
+        analysis_profile=analysis_profile,
     )
 
 
