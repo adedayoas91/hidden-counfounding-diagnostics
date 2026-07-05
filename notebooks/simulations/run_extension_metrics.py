@@ -33,6 +33,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--T", type=int, default=2000)
     parser.add_argument("--d", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="Disable scenario/repeat and conditioning-depth progress bars.",
+    )
     return parser.parse_args()
 
 
@@ -55,8 +60,11 @@ def main() -> None:
         output_dir=(
             root / "outputs" / "simulations" / "extension_metrics" / args.method
         ),
+        show_progress=not args.no_progress,
     )
-    print(result)
+    print("\nReturned artifacts:", flush=True)
+    for key, value in result.items():
+        print(f"  {key}: {value}", flush=True)
 
 
 if __name__ == "__main__":

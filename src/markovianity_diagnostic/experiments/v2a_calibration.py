@@ -22,7 +22,8 @@ from joblib import Parallel, delayed
 
 from .adapters import (
     GcStar,
-    analyze_with_jpcmciplus,
+    PCMCI_CONDITIONING_PARAMETERS,
+    PCMCI_FIXED_LAG,
     analyze_with_pcmciplus,
     make_gcstar_analyzer,
 )
@@ -342,7 +343,6 @@ def make_v2a_surrogate_analyzer(
         algorithm = str(tigramite_params["algorithm"]).lower()
         tigramite_analyzers = {
             "pcmciplus": analyze_with_pcmciplus,
-            "jpcmciplus": analyze_with_jpcmciplus,
         }
         try:
             tigramite_analyzer = tigramite_analyzers[algorithm]
@@ -350,6 +350,30 @@ def make_v2a_surrogate_analyzer(
             raise ValueError(
                 f"Unsupported run_metadata.tigramite_params.algorithm: {algorithm!r}"
             ) from error
+        fixed_lag_required = {
+            "tau_min",
+            "tau_max",
+            "depth_parameter",
+            "conditioning_parameters",
+        }
+        missing = sorted(fixed_lag_required.difference(tigramite_params))
+        if missing:
+            raise ValueError(
+                "run_metadata.tigramite_params is missing fixed-lag "
+                f"configuration: {missing}"
+            )
+        if (
+            int(tigramite_params["tau_min"]) != PCMCI_FIXED_LAG
+            or int(tigramite_params["tau_max"]) != PCMCI_FIXED_LAG
+            or tigramite_params["depth_parameter"]
+            != "maximum_conditioning_set_size"
+            or tigramite_params["conditioning_parameters"]
+            != list(PCMCI_CONDITIONING_PARAMETERS)
+        ):
+            raise ValueError(
+                "run_metadata.tigramite_params does not describe the required "
+                "fixed-lag PCMCI+ conditioning-depth configuration"
+            )
         pc_alpha = float(tigramite_params["pc_alpha"])
 
         def base_analyzer(
@@ -508,6 +532,9 @@ def run_resumable_v2a_calibration(
     checkpoint_dir: Path,
     n_jobs: int = 1,
     config_metadata: dict[str, Any] | None = None,
+    show_progress: bool = False,
+    progress_label: str | None = None,
+    progress_position: int = 0,
 ) -> V2ACalibrationOutcome:
     """Calibrate one observed pickle grid using checkpointed surrogates."""
 
@@ -626,8 +653,39 @@ def run_resumable_v2a_calibration(
         return summary, False
 
     if n_jobs == 1:
-        completed = [run_replicate(index) for index in range(B)]
+        replicate_indices: Any = range(B)
+        progress_bar = None
+        if show_progress:
+            from tqdm.auto import tqdm
+
+            progress_bar = tqdm(
+                replicate_indices,
+                desc=progress_label or "Bootstrap replicates",
+                unit="rep",
+                dynamic_ncols=True,
+                leave=True,
+                position=progress_position,
+            )
+            replicate_indices = progress_bar
+
+        completed = []
+        reused_so_far = 0
+        for index in replicate_indices:
+            result = run_replicate(index)
+            completed.append(result)
+            reused_so_far += int(result[1])
+            if progress_bar is not None:
+                progress_bar.set_postfix(
+                    reused=reused_so_far,
+                    computed=len(completed) - reused_so_far,
+                    refresh=True,
+                )
     else:
+        if show_progress:
+            print(
+                "Per-replicate progress is available with n_jobs=1; "
+                f"running this job with n_jobs={n_jobs}."
+            )
         completed = Parallel(n_jobs=n_jobs, prefer="threads")(
             delayed(run_replicate)(index) for index in range(B)
         )

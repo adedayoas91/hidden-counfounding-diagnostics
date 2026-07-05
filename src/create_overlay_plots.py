@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-"""
-Create overlay plots comparing available method results.
-"""
+"""Create the primary c-GC/c-GC* conditioning-depth plots."""
 
 import json
 from pathlib import Path
@@ -9,8 +7,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).parent
-OUTPUT_DIR = ROOT.parent / 'outputs'
+OUTPUT_DIR = ROOT.parent / 'outputs' / 'simulations'
 FIGURES_DIR = OUTPUT_DIR / 'figures'
+MANUSCRIPT_FIGURES_DIR = ROOT.parent.parent / 'images'
 
 METRIC_NAMES = ['accuracy', 'precision', 'recall', 'fpr', 'balanced_accuracy', 'f1']
 METRIC_LABELS = {
@@ -22,7 +21,7 @@ METRIC_LABELS = {
     'f1': 'F1 Score',
 }
 
-# Method configurations
+# Only these methods implement the matched fixed-horizon depth intervention.
 METHODS = {
     'c-GC': {
         'color': '#1f77b4',  # blue
@@ -37,27 +36,6 @@ METHODS = {
         'linestyle': '--',
         'path': OUTPUT_DIR / 'c-GC-star_results',
         'agg_filename': 'cgcstar_aggregated.json',
-    },
-    'PCMCI+': {
-        'color': '#2ca02c',  # green
-        'marker': '^',
-        'linestyle': ':',
-        'path': OUTPUT_DIR / 'pcmci_plus_results',
-        'agg_filename': 'pcmci_plus_aggregated.json',
-    },
-    'JPCMCI+': {
-        'color': '#9467bd',  # purple
-        'marker': 'D',
-        'linestyle': '-.',
-        'path': OUTPUT_DIR / 'jpcmciplus_results',
-        'agg_filename': 'jpcmciplus_aggregated.json',
-    },
-    'LPCMCI': {
-        'color': '#8c564b',  # brown
-        'marker': 'v',
-        'linestyle': '-',
-        'path': OUTPUT_DIR / 'lpcmci_results',
-        'agg_filename': 'lpcmci_aggregated.json',
     },
 }
 
@@ -194,9 +172,12 @@ def plot_overlay_scenario(scenario: str) -> None:
     # Ensure figures directory exists
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Save with convention expected by downstream usage.
-    output_path = FIGURES_DIR / f'{scenario}-all_methods.png'
+    # Save the primary figure and the copy consumed by the LaTeX manuscript.
+    output_path = FIGURES_DIR / f'{scenario}.png'
     fig.savefig(output_path, dpi=150, bbox_inches='tight')
+    MANUSCRIPT_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    manuscript_path = MANUSCRIPT_FIGURES_DIR / f'{scenario}.png'
+    fig.savefig(manuscript_path, dpi=150, bbox_inches='tight')
     plt.close(fig)
 
     print(f"✓ Saved overlay plot → {output_path.relative_to(ROOT.parent)}")

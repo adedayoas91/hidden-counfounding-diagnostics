@@ -284,7 +284,6 @@ def test_surrogate_analyzer_runs_only_native_depths_before_completion():
     ("algorithm", "analyzer_name"),
     [
         ("pcmciplus", "analyze_with_pcmciplus"),
-        ("jpcmciplus", "analyze_with_jpcmciplus"),
     ],
 )
 def test_surrogate_analyzer_uses_recorded_tigramite_configuration(
@@ -304,6 +303,15 @@ def test_surrogate_analyzer_uses_recorded_tigramite_configuration(
             "tigramite_params": {
                 "algorithm": algorithm,
                 "pc_alpha": 0.025,
+                "tau_min": 1,
+                "tau_max": 1,
+                "depth_parameter": "maximum_conditioning_set_size",
+                "conditioning_parameters": [
+                    "max_conds_dim",
+                    "max_conds_py",
+                    "max_conds_px",
+                    "max_conds_px_lagged",
+                ],
             }
         }
     )
@@ -324,6 +332,22 @@ def test_surrogate_analyzer_rejects_unknown_tigramite_algorithm():
                 "tigramite_params": {
                     "algorithm": "unknown",
                     "pc_alpha": 0.05,
+                }
+            }
+        )
+
+
+def test_surrogate_analyzer_rejects_legacy_varying_lag_pcmciplus_metadata():
+    with pytest.raises(ValueError, match="fixed-lag"):
+        make_v2a_surrogate_analyzer(
+            {
+                "tigramite_params": {
+                    "algorithm": "pcmciplus",
+                    "pc_alpha": 0.05,
+                    "tau_min": 1,
+                    "tau_max": 7,
+                    "depth_parameter": "tau_max",
+                    "conditioning_parameters": [],
                 }
             }
         )
@@ -436,7 +460,7 @@ def test_dynamic_pointwise_plot_supports_eight_panels(tmp_path):
 
 @pytest.mark.parametrize(
     "method_dir",
-    ["c-GC", "c-GC-star", "pcmciplus", "jpcmciplus"],
+    ["c-GC", "c-GC-star", "pcmciplus"],
 )
 def test_method_calibration_notebooks_are_isolated_and_use_pickle_contract(
     method_dir,
@@ -476,7 +500,8 @@ def test_aggregate_v2a_calibration_notebook_was_replaced():
     calibration_dir = Path(__file__).parents[1] / "notebooks" / "calibration"
 
     assert not (calibration_dir / "bootstrap_null_v2a.ipynb").exists()
-    assert len(list(calibration_dir.glob("bootstrap_null_v2a_*.ipynb"))) == 4
+    assert len(list(calibration_dir.glob("bootstrap_null_v2a_*.ipynb"))) == 3
+    assert not (calibration_dir / "bootstrap_null_v2a_jpcmciplus.ipynb").exists()
 
 
 def test_connectivity_notebooks_use_shared_profile_and_seven_depths():

@@ -1,4 +1,4 @@
-"""Contract checks for the four-method v2a-RSN comparison notebook."""
+"""Contract checks for the comparable three-method v2a-RSN notebook."""
 
 from __future__ import annotations
 
@@ -21,15 +21,16 @@ def test_compare_all_methods_notebook_contract():
         if cell["cell_type"] == "code"
     )
 
-    for method_dir in ("c-GC", "c-GC-star", "pcmciplus", "jpcmciplus"):
+    for method_dir in ("c-GC", "c-GC-star", "pcmciplus"):
         assert f"'directory': '{method_dir}'" in code_source
+    assert "jpcmciplus" not in code_source.lower()
 
     assert "P_VALUES = [1, 2, 3, 4, 5, 6, 7]" in code_source
     assert "EXPECTED_RECORDINGS" in code_source
     assert "All methods must contain the same recordings" in code_source
     assert "All methods must contain P=1,...,7" in code_source
     assert "'conditioning-set depth'" in code_source
-    assert "'Tigramite tau_max'" in code_source
+    assert "'maximum conditioning-set size at fixed lag 1'" in code_source
     assert "method_comparison_summary.csv" in code_source
     assert "edge_count_comparison.png" in code_source
     assert "instability_comparison.png" in code_source

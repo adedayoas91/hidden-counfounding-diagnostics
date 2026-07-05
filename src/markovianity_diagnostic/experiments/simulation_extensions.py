@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,38 @@ def load_trial_adjacencies(path: str | Path) -> dict[int, np.ndarray]:
             int(key.removeprefix("p_")): np.asarray(value, dtype=int)
             for key, value in payload.items()
         }
+
+
+def _load_reusable_trial(
+    trial_dir: Path,
+    *,
+    expected_data: np.ndarray,
+    expected_truth: np.ndarray,
+    p_values: list[int],
+) -> dict[int, np.ndarray] | None:
+    data_path = trial_dir / "data.npy"
+    truth_path = trial_dir / "ground_truth.npy"
+    adjacency_path = trial_dir / "adjacencies.npz"
+    if not all(path.exists() for path in (data_path, truth_path, adjacency_path)):
+        return None
+
+    try:
+        stored_data = np.load(data_path, allow_pickle=False)
+        stored_truth = np.load(truth_path, allow_pickle=False)
+        adjacencies = load_trial_adjacencies(adjacency_path)
+    except (OSError, TypeError, ValueError):
+        return None
+
+    if not np.array_equal(stored_data, expected_data, equal_nan=True):
+        return None
+    if not np.array_equal(stored_truth, expected_truth):
+        return None
+    if sorted(adjacencies) != p_values:
+        return None
+    expected_shape = expected_truth.shape
+    if any(np.asarray(graph).shape != expected_shape for graph in adjacencies.values()):
+        return None
+    return adjacencies
 
 
 def _scenario_arguments(
@@ -104,6 +137,7 @@ def run_extension_simulations(
     d: int,
     seed: int,
     output_dir: str | Path,
+    show_progress: bool = False,
 ) -> dict[str, Any]:
     """Run simulations and write all artifacts required by the extension plan."""
     if method not in METHODS or method in {"user_method"}:
@@ -126,79 +160,175 @@ def run_extension_simulations(
     records: list[dict[str, Any]] = []
     rows: list[dict[str, Any]] = []
     input_paths: list[str] = []
+    reused_trials = 0
+    jobs = [
+        (scenario_name, repeat)
+        for scenario_name in scenario_names
+        for repeat in range(n_repeats)
+    ]
+    suite_start = time.perf_counter()
+    status = print
+    job_iterator: Any = enumerate(jobs, start=1)
+    overall_progress = None
+    if show_progress:
+        from tqdm.auto import tqdm
 
-    for scenario_name in scenario_names:
+        status = tqdm.write
+        overall_progress = tqdm(
+            job_iterator,
+            total=len(jobs),
+            desc="Extension simulation trials",
+            unit="trial",
+            dynamic_ncols=True,
+            leave=True,
+            position=0,
+        )
+        job_iterator = overall_progress
+
+        print("=" * 72, flush=True)
+        print("Extension-compatible simulation metrics", flush=True)
+        print(f"Method: {method}", flush=True)
+        print(f"Scenarios: {scenario_names}", flush=True)
+        print(f"Repeats per scenario: {n_repeats}", flush=True)
+        print(f"Depth grid: {p_values}", flush=True)
+        print(f"Data dimensions: T={T}, d={d}; base seed={seed}", flush=True)
+        print(f"Total trials: {len(jobs)}", flush=True)
+        print(f"Total single-depth fits: {len(jobs) * len(p_values)}", flush=True)
+        print(f"Output directory: {output_dir}", flush=True)
+        print("=" * 72, flush=True)
+
+    for job_index, (scenario_name, repeat) in job_iterator:
         scenario_fn = SCENARIOS[scenario_name]
-        for repeat in range(n_repeats):
-            local_seed = seed + repeat
-            sample = scenario_fn(
-                **_scenario_arguments(
-                    scenario_name,
-                    T=T,
-                    d=d,
-                    seed=local_seed,
+        local_seed = seed + repeat
+        trial_start = time.perf_counter()
+        if show_progress:
+            status(
+                f"\n[{job_index}/{len(jobs)}] "
+                f"{scenario_name} | repeat {repeat + 1}/{n_repeats} "
+                f"| seed={local_seed}"
+            )
+        sample = scenario_fn(
+            **_scenario_arguments(
+                scenario_name,
+                T=T,
+                d=d,
+                seed=local_seed,
+            )
+        )
+        trial_dir = trial_root / scenario_name / f"repeat_{repeat:03d}"
+        adjacencies = _load_reusable_trial(
+            trial_dir,
+            expected_data=sample.X,
+            expected_truth=sample.ground_truth_compact,
+            p_values=p_values,
+        )
+        reused = adjacencies is not None
+        if reused:
+            reused_trials += 1
+            if show_progress:
+                status(
+                    "Reusing complete trial artifacts; "
+                    "skipping all conditioning-depth fits."
                 )
-            )
-            adjacencies = analyzer(sample.X, p_values)
-            summary = summarize_run(
-                adjacencies,
-                sample.ground_truth_compact,
-            )
-            summary["cumulative_instability"] = float(
-                sum(summary["D_p"].values())
-            )
-            selection_result = selector.apply_all_rules(
-                summary["D_p"],
-                D_boot_pointwise={},
-            )
+        else:
+            depth_iterator: Any = p_values
+            if show_progress:
+                from tqdm.auto import tqdm
 
-            trial_dir = trial_root / scenario_name / f"repeat_{repeat:03d}"
-            trial_dir.mkdir(parents=True, exist_ok=True)
-            data_path = trial_dir / "data.npy"
-            truth_path = trial_dir / "ground_truth.npy"
-            adjacency_path = trial_dir / "adjacencies.npz"
-            np.save(data_path, sample.X, allow_pickle=False)
-            np.save(
-                truth_path,
-                sample.ground_truth_compact,
-                allow_pickle=False,
-            )
-            np.savez_compressed(
-                adjacency_path,
-                **{f"p_{depth}": graph for depth, graph in adjacencies.items()},
-            )
-            input_paths.append(str(data_path))
-            relative_data_path = data_path.relative_to(output_dir)
-            relative_truth_path = truth_path.relative_to(output_dir)
-            relative_adjacency_path = adjacency_path.relative_to(output_dir)
+                depth_iterator = tqdm(
+                    p_values,
+                    desc=(
+                        f"{scenario_name[:24]} "
+                        f"r{repeat + 1}/{n_repeats} depths"
+                    ),
+                    unit="depth",
+                    dynamic_ncols=True,
+                    leave=False,
+                    position=1,
+                )
 
-            records.append(
-                {
-                    "scenario": scenario_name,
-                    "method": method,
-                    "repeat": repeat,
-                    "seed": local_seed,
-                    "metadata": sample.metadata,
-                    "data_path": str(relative_data_path),
-                    "ground_truth_path": str(relative_truth_path),
-                    "adjacency_path": str(relative_adjacency_path),
-                    "summary": summary,
-                    "depth_selection": {
-                        "selected": selection_result.selected,
-                        "warnings": selection_result.warnings,
-                    },
-                    "calibration_status": "ready_for_surrogate_rerun",
-                }
+            adjacencies = {}
+            for depth in depth_iterator:
+                adjacencies.update(analyzer(sample.X, [int(depth)]))
+
+        summary = summarize_run(
+            adjacencies,
+            sample.ground_truth_compact,
+        )
+        summary["cumulative_instability"] = float(sum(summary["D_p"].values()))
+        selection_result = selector.apply_all_rules(
+            summary["D_p"],
+            D_boot_pointwise={},
+        )
+
+        trial_dir.mkdir(parents=True, exist_ok=True)
+        data_path = trial_dir / "data.npy"
+        truth_path = trial_dir / "ground_truth.npy"
+        adjacency_path = trial_dir / "adjacencies.npz"
+        np.save(data_path, sample.X, allow_pickle=False)
+        np.save(
+            truth_path,
+            sample.ground_truth_compact,
+            allow_pickle=False,
+        )
+        np.savez_compressed(
+            adjacency_path,
+            **{f"p_{depth}": graph for depth, graph in adjacencies.items()},
+        )
+        input_paths.append(str(data_path))
+        relative_data_path = data_path.relative_to(output_dir)
+        relative_truth_path = truth_path.relative_to(output_dir)
+        relative_adjacency_path = adjacency_path.relative_to(output_dir)
+
+        records.append(
+            {
+                "scenario": scenario_name,
+                "method": method,
+                "repeat": repeat,
+                "seed": local_seed,
+                "metadata": sample.metadata,
+                "data_path": str(relative_data_path),
+                "ground_truth_path": str(relative_truth_path),
+                "adjacency_path": str(relative_adjacency_path),
+                "summary": summary,
+                "depth_selection": {
+                    "selected": selection_result.selected,
+                    "warnings": selection_result.warnings,
+                },
+                "calibration_status": "ready_for_surrogate_rerun",
+                "reused_trial_artifacts": bool(reused),
+            }
+        )
+        rows.extend(
+            _depth_rows(
+                scenario=scenario_name,
+                method=method,
+                repeat=repeat,
+                summary=summary,
+                selection=selection_result.selected,
             )
-            rows.extend(
-                _depth_rows(
+        )
+
+        if show_progress:
+            elapsed = time.perf_counter() - trial_start
+            first_depth = min(summary["edge_counts"])
+            last_depth = max(summary["edge_counts"])
+            status(
+                f"Completed {scenario_name} repeat {repeat + 1}: "
+                f"T_obs={summary['T_obs']:.6f}; "
+                f"edges(p={first_depth})={summary['edge_counts'][first_depth]}; "
+                f"edges(p={last_depth})={summary['edge_counts'][last_depth]}; "
+                f"reused={reused}; "
+                f"elapsed={elapsed:.1f}s"
+            )
+            status(f"Saved trial: {trial_dir}")
+            if overall_progress is not None:
+                overall_progress.set_postfix(
                     scenario=scenario_name,
-                    method=method,
-                    repeat=repeat,
-                    summary=summary,
-                    selection=selection_result.selected,
+                    repeat=f"{repeat + 1}/{n_repeats}",
+                    reused=reused_trials,
+                    refresh=True,
                 )
-            )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     results_path = output_dir / "extension_results.json"
@@ -269,12 +399,27 @@ def run_extension_simulations(
         random_seed=seed,
     ).to_json(manifest_path)
 
+    if show_progress:
+        print("=" * 72, flush=True)
+        print("Extension metrics complete", flush=True)
+        print(f"Completed trials: {len(records)}", flush=True)
+        print(f"Reused trials: {reused_trials}", flush=True)
+        print(f"Computed trials: {len(records) - reused_trials}", flush=True)
+        print(f"Elapsed: {time.perf_counter() - suite_start:.1f}s", flush=True)
+        print(f"Detailed results: {results_path}", flush=True)
+        print(f"Per-depth metrics: {metrics_path}", flush=True)
+        print(f"Aggregated summary: {summary_path}", flush=True)
+        print(f"Manifest: {manifest_path}", flush=True)
+        print("=" * 72, flush=True)
+
     return {
         "results_path": str(results_path),
         "metrics_path": str(metrics_path),
         "summary_path": str(summary_path),
         "manifest_path": str(manifest_path),
         "n_runs": len(records),
+        "reused_trials": reused_trials,
+        "computed_trials": len(records) - reused_trials,
     }
 
 

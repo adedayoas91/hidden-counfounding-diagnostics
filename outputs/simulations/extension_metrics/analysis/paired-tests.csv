@@ -1,0 +1,7 @@
+comparison,method,endpoint,n_pairs,mean_difference,median_difference,ci95_low,ci95_high,positive_pairs,negative_pairs,zero_pairs,p_exact,p_holm_primary
+latent_common_driver - order1_unconfounded,fast_gcstar_cgc,T_obs,10,0.033333333333333305,0.0333333333333333,0.024444444444444418,0.043333333333333286,10,0,0,0.001953125,0.00390625
+latent_common_driver - order1_unconfounded,fast_gcstar_cgc,cumulative_instability,10,0.08666666666666661,0.0777777777777777,0.06222222222222216,0.11222222222222215,10,0,0,0.001953125,
+latent_common_driver - order1_unconfounded,fast_gcstar_fcgc,T_obs,10,0.01888888888888887,0.0222222222222222,0.0111111111111111,0.026666666666666637,8,0,2,0.0078125,0.0078125
+latent_common_driver - order1_unconfounded,fast_gcstar_fcgc,cumulative_instability,10,0.044444444444444405,0.0444444444444444,0.025555555555555533,0.06444444444444442,8,0,2,0.0078125,
+c-GC - c-GC* within latent_common_driver,paired_methods,T_obs,10,0.01444444444444443,0.0111111111111111,0.0033333333333333296,0.025555555555555533,7,1,2,0.0703125,
+c-GC - c-GC* within latent_common_driver,paired_methods,cumulative_instability,10,0.042222222222222196,0.0444444444444444,0.025555555555555533,0.057777777777777775,9,0,1,0.00390625,

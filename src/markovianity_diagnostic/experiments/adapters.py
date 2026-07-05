@@ -41,6 +41,14 @@ def _load_fast_gcstar_class() -> type:
 
 FastGcStar = _load_fast_gcstar_class()
 
+PCMCI_FIXED_LAG = 1
+PCMCI_CONDITIONING_PARAMETERS = (
+    "max_conds_dim",
+    "max_conds_py",
+    "max_conds_px",
+    "max_conds_px_lagged",
+)
+
 
 def _design_matrix(X: np.ndarray, p: int) -> tuple[np.ndarray, np.ndarray]:
     """Build a stacked autoregressive design matrix from ``X``."""
@@ -218,6 +226,27 @@ def _collapse_tigramite_graph(
     return adjacency
 
 
+def _pcmciplus_run_kwargs(
+    conditioning_depth: int,
+    *,
+    pc_alpha: float,
+) -> dict[str, int | float]:
+    """Map the shared depth index to PCMCI+ conditioning limits at lag one."""
+
+    depth = int(conditioning_depth)
+    if depth < 1:
+        raise ValueError("PCMCI+ conditioning depth must be at least 1.")
+    kwargs: dict[str, int | float] = {
+        "tau_min": PCMCI_FIXED_LAG,
+        "tau_max": PCMCI_FIXED_LAG,
+        "pc_alpha": float(pc_alpha),
+    }
+    kwargs.update(
+        {parameter: depth for parameter in PCMCI_CONDITIONING_PARAMETERS}
+    )
+    return kwargs
+
+
 def _analyze_with_tigramite(
     X: np.ndarray,
     p_values: list[int],
@@ -241,9 +270,7 @@ def _analyze_with_tigramite(
                 verbosity=0,
             )
             result = learner.run_pcmciplus(
-                tau_min=1,
-                tau_max=int(depth),
-                pc_alpha=pc_alpha,
+                **_pcmciplus_run_kwargs(depth, pc_alpha=pc_alpha)
             )
             directed_only = True
         elif algorithm == "fullci":
@@ -256,24 +283,6 @@ def _analyze_with_tigramite(
                 verbosity=0,
             )
             result = learner.run_fullci(tau_max=int(depth))
-            directed_only = True
-        elif algorithm == "jpcmciplus":
-            from tigramite.independence_tests.parcorr_mult import ParCorrMult
-            from tigramite.jpcmciplus import JPCMCIplus
-
-            learner = JPCMCIplus(
-                dataframe=dataframe,
-                cond_ind_test=ParCorrMult(significance="analytic"),
-                node_classification={
-                    index: "system" for index in range(X.shape[1])
-                },
-                verbosity=0,
-            )
-            result = learner.run_jpcmciplus(
-                tau_min=0,
-                tau_max=int(depth),
-                pc_alpha=pc_alpha,
-            )
             directed_only = True
         elif algorithm == "lpcmci":
             from tigramite.independence_tests.parcorr import ParCorr
@@ -306,7 +315,7 @@ def analyze_with_pcmciplus(
     *,
     pc_alpha: float = 0.05,
 ) -> dict[int, np.ndarray]:
-    """Run PCMCI+ with a configurable conditional-independence threshold."""
+    """Run fixed-lag PCMCI+ over maximum conditioning-set sizes."""
     return _analyze_with_tigramite(
         X,
         p_values,
@@ -315,34 +324,17 @@ def analyze_with_pcmciplus(
     )
 
 
-def analyze_with_fullci(
-    X: np.ndarray, p_values: list[int]
-) -> dict[int, np.ndarray]:
+def analyze_with_fullci(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
     return _analyze_with_tigramite(X, p_values, algorithm="fullci")
 
 
-def analyze_with_jpcmciplus(
-    X: np.ndarray,
-    p_values: list[int],
-    *,
-    pc_alpha: float = 0.05,
-) -> dict[int, np.ndarray]:
-    """Run JPCMCI+ with a configurable conditional-independence threshold."""
-    return _analyze_with_tigramite(
-        X,
-        p_values,
-        algorithm="jpcmciplus",
-        pc_alpha=pc_alpha,
-    )
-
-
-def analyze_with_lpcmci(
-    X: np.ndarray, p_values: list[int]
-) -> dict[int, np.ndarray]:
+def analyze_with_lpcmci(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
     return _analyze_with_tigramite(X, p_values, algorithm="lpcmci")
 
 
-def analyze_with_user_method(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
+def analyze_with_user_method(
+    X: np.ndarray, p_values: list[int]
+) -> dict[int, np.ndarray]:
     """Placeholder for user-supplied methods.
 
     Replace this function body if you want to keep the external-method hook
@@ -370,7 +362,9 @@ def normalize_adjacency_output(
             for p_value, value in zip(p_values, raw, strict=True)
         }
     else:
-        raise TypeError("User method must return dict[p, adjacency] or a list of adjacency matrices.")
+        raise TypeError(
+            "User method must return dict[p, adjacency] or a list of adjacency matrices."
+        )
 
     required = {int(p_value) for p_value in p_values}
     missing = sorted(required.difference(output))
@@ -389,7 +383,9 @@ def normalize_adjacency_output(
     return output
 
 
-def load_external_method(spec: str) -> Callable[[np.ndarray, list[int]], dict[int, np.ndarray]]:
+def load_external_method(
+    spec: str,
+) -> Callable[[np.ndarray, list[int]], dict[int, np.ndarray]]:
     """Load an analyzer from ``module:function`` notation."""
 
     if ":" not in spec:
@@ -414,7 +410,6 @@ METHODS = {
     "legacy_gcstar_fcgc": analyze_with_gcstar_fcgc,
     "pcmciplus": analyze_with_pcmciplus,
     "fullci": analyze_with_fullci,
-    "jpcmciplus": analyze_with_jpcmciplus,
     "lpcmci": analyze_with_lpcmci,
     "user_method": analyze_with_user_method,
 }
@@ -450,13 +445,14 @@ METHOD_METADATA: dict[str, dict[str, object]] = {
     },
     "legacy_gcstar_cgc": {"implementation": "GcStar", "variant": "cgc"},
     "legacy_gcstar_fcgc": {"implementation": "GcStar", "variant": "fcgc"},
-    "pcmciplus": {"implementation": "Tigramite PCMCI+", "pc_alpha": 0.05},
-    "fullci": {"implementation": "Tigramite FullCI"},
-    "jpcmciplus": {
-        "implementation": "Tigramite JPCMCI+",
+    "pcmciplus": {
+        "implementation": "Tigramite PCMCI+",
         "pc_alpha": 0.05,
-        "node_classification": "all system",
+        "fixed_lag": PCMCI_FIXED_LAG,
+        "depth_parameter": "maximum_conditioning_set_size",
+        "conditioning_caps": list(PCMCI_CONDITIONING_PARAMETERS),
     },
+    "fullci": {"implementation": "Tigramite FullCI"},
     "lpcmci": {
         "implementation": "Tigramite LPCMCI",
         "pc_alpha": 0.05,

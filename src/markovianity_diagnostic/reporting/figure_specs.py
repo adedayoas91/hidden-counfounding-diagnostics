@@ -56,21 +56,26 @@ LPCMCI edges generally align with stable c-GC edges, validating consistency when
     "Figure4_MethodSummary": {
         "name": "Figure4_MethodSummary",
         "source_data_paths": [
-            "outputs/simulations/pcmci_plus_results/varLags-Markovian/pcmci_plus_aggregated.json",
-            "outputs/simulations/pcmci_plus_results/varLags-NonMarkovian/pcmci_plus_aggregated.json",
-            "outputs/simulations/pcmci_plus_results/singleLag-Markovian/pcmci_plus_aggregated.json",
-            "outputs/simulations/pcmci_plus_results/singleLag-NonMarkovian/pcmci_plus_aggregated.json",
+            "outputs/simulations/c-GC_results/varLags-Markovian/cgc_aggregated.json",
+            "outputs/simulations/c-GC_results/varLags-NonMarkovian/cgc_aggregated.json",
+            "outputs/simulations/c-GC_results/singleLag-Markovian/cgc_aggregated.json",
+            "outputs/simulations/c-GC_results/singleLag-NonMarkovian/cgc_aggregated.json",
+            "outputs/simulations/c-GC-star_results/varLags-Markovian/cgcstar_aggregated.json",
+            "outputs/simulations/c-GC-star_results/varLags-NonMarkovian/cgcstar_aggregated.json",
+            "outputs/simulations/c-GC-star_results/singleLag-Markovian/cgcstar_aggregated.json",
+            "outputs/simulations/c-GC-star_results/singleLag-NonMarkovian/cgcstar_aggregated.json",
         ],
         "output_path": "nature_methods/figures/Figure4_MethodSummary.png",
         "caption": """
-**Method performance across simulation scenarios.**
+**Matched conditioning-depth performance across simulation scenarios.**
 Bar plots show mean accuracy (±std), precision, recall, and false positive rate (FPR)
-for c-GC* and baseline methods across four simulation scenarios:
+for c-GC and c-GC* across four simulation scenarios:
 (A) VAR with Markovian structure (order 1),
 (B) VAR with non-Markovian memory dependence,
 (C) Single-lag DAG with Markovian dynamics,
 (D) Single-lag DAG with hidden confounding.
-c-GC* maintains low FPR across scenarios while preserving accuracy in Markovian cases.
+Only methods implementing the same fixed-lag, requested-depth intervention are
+included in this primary comparison.
 """,
         "fig_type": "summary_table",
     },

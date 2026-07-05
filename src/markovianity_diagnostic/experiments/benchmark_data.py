@@ -1,6 +1,6 @@
 """Deterministic data generation for cross-method benchmark notebooks.
 
-All method notebooks (c-GC, c-GC*, PCMCI+, J-PCMCI+) call
+All active method notebooks (c-GC, c-GC*, and PCMCI+) call
 :func:`generate_trial_data` so that, for a given ``(trial_id, seed)``, every
 method observes the *exact same* simulated data. This enables apples-to-apples
 comparison across methods.

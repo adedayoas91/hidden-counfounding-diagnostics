@@ -4,21 +4,27 @@ The original method notebooks export recovery summaries but generally do not
 retain per-trial graphs. Those summaries cannot be used to reconstruct graph
 instability or edge-level transitions.
 
-Run the `extension_metrics.ipynb` notebook in each method directory to create
-the compatible artifacts under:
+Run the `extension_metrics.ipynb` notebook in a primary method directory to
+create compatible artifacts under:
 
 ```text
 outputs/simulations/extension_metrics/<method>/
 ```
 
-Supported methods:
+Primary methods:
 
 - `fast_gcstar_cgc`
 - `fast_gcstar_fcgc`
-- `pcmciplus`
-- `jpcmciplus`
-- `lpcmci`
-- `fullci`
+
+Other adapters may still generate exploratory extension artifacts, but they
+are not part of the matched conditioning-depth hypothesis or its primary
+figures.
+
+These notebooks are independent of
+`notebooks/calibration/bootstrap_null_synthetic_c-GC.ipynb` and
+`notebooks/calibration/bootstrap_null_synthetic_c-GC-star.ipynb`. The bootstrap
+notebooks generate and calibrate their own controlled samples, so extension
+metrics do not need to be run first.
 
 ## Computed directly
 
@@ -43,9 +49,9 @@ Each trial directory contains:
 - `ground_truth.npy`: compact ground-truth adjacency
 - `adjacencies.npz`: inferred adjacency at every depth
 
-These files make the run directly consumable by:
+These files make the frozen trials directly consumable by dedicated downstream
+analyses such as:
 
-- surrogate-null calibration and bootstrap-band depth selection
 - edgewise instability localization and empirical FDR
 - method-comparison tables
 - power and runtime aggregation

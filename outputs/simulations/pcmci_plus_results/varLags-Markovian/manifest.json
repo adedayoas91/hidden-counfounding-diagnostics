@@ -1,0 +1,30 @@
+{
+  "created_at": "2026-07-04T22:26:22.653731+00:00",
+  "analysis": "PCMCI+ fixed-lag conditioning-depth sensitivity",
+  "scenario": "varLags-Markovian",
+  "method": "pcmciplus",
+  "p_values": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "fixed_lag": 1,
+  "pc_alpha": 0.05,
+  "conditioning_parameters": [
+    "max_conds_dim",
+    "max_conds_py",
+    "max_conds_px",
+    "max_conds_px_lagged"
+  ],
+  "n_trials": 10,
+  "master_seed": 42,
+  "output_paths": [
+    "outputs/simulations/pcmci_plus_results/varLags-Markovian/pcmci_plus_results.csv",
+    "outputs/simulations/pcmci_plus_results/varLags-Markovian/pcmci_plus_aggregated.json",
+    "outputs/simulations/pcmci_plus_results/varLags-Markovian/pcmci_plus_metrics.png"
+  ]
+}
