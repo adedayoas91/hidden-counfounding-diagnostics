@@ -19,9 +19,9 @@ from markovianity_diagnostic.experiments.simulations import (
     ScenarioResult,
     make_sparse_matrix,
     scale_to_stability,
+    scale_var_to_stability,
     simulate_var,
     compact_ground_truth,
-    spectral_radius,
 )
 
 
@@ -83,11 +83,9 @@ class SyntheticMarkovianNull:
             magnitude = 0.60 - 0.15 * lag_idx
             lag_matrices.append(a * magnitude)
 
-        # Scale to stability
-        total_radius = sum(spectral_radius(a) for a in lag_matrices)
-        if total_radius > 1e-12:
-            scale = 0.80 / total_radius
-            lag_matrices = [scale * a for a in lag_matrices]
+        # VAR(p) stability is determined by the companion matrix, not by the
+        # sum of the individual coefficient-matrix spectral radii.
+        lag_matrices = scale_var_to_stability(lag_matrices)
 
         # Generate VAR process
         X = simulate_var(

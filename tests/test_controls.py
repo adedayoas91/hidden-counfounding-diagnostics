@@ -85,6 +85,14 @@ class TestSyntheticMarkovianNull:
         assert np.isfinite(variance)
         assert variance > 1e-8, "Should have some signal"
 
+    def test_order3_stability_across_control_seeds(self, seed_fix):
+        """Order-3 controls must remain finite for the notebook's ten seeds."""
+        ctrl = SyntheticMarkovianNull(order=3)
+        for seed in range(42, 52):
+            result = ctrl.generate(T=2000, d=10, seed=seed)
+            assert np.isfinite(result.X).all()
+            assert np.max(np.abs(result.X)) < 1e6
+
 
 class TestSyntheticLatentControlPositive:
     """Test latent common driver positive control."""

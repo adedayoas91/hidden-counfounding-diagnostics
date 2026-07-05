@@ -33,6 +33,50 @@ def scale_to_stability(matrix: np.ndarray, target_radius: float = 0.85) -> np.nd
     return matrix * (target_radius / radius)
 
 
+def var_companion_matrix(lag_matrices: list[np.ndarray]) -> np.ndarray:
+    """Construct the companion matrix whose radius determines VAR stability."""
+
+    if not lag_matrices:
+        raise ValueError("lag_matrices cannot be empty")
+    matrices = [np.asarray(matrix, dtype=float) for matrix in lag_matrices]
+    d = matrices[0].shape[0]
+    if any(matrix.shape != (d, d) for matrix in matrices):
+        raise ValueError("lag_matrices must contain equally shaped square matrices")
+
+    top = np.hstack(matrices)
+    if len(matrices) == 1:
+        return top
+    lower = np.hstack(
+        [
+            np.eye(d * (len(matrices) - 1)),
+            np.zeros((d * (len(matrices) - 1), d)),
+        ]
+    )
+    return np.vstack([top, lower])
+
+
+def scale_var_to_stability(
+    lag_matrices: list[np.ndarray],
+    target_radius: float = 0.80,
+) -> list[np.ndarray]:
+    """Scale all VAR lag matrices until the companion radius is controlled."""
+
+    if not 0 < target_radius < 1:
+        raise ValueError("target_radius must lie strictly between zero and one")
+    matrices = [np.asarray(matrix, dtype=float).copy() for matrix in lag_matrices]
+    radius = spectral_radius(var_companion_matrix(matrices))
+    if radius <= target_radius:
+        return matrices
+
+    scale = min(0.95, target_radius / radius)
+    for _ in range(200):
+        candidate = [scale * matrix for matrix in matrices]
+        if spectral_radius(var_companion_matrix(candidate)) <= target_radius:
+            return candidate
+        scale *= 0.90
+    raise RuntimeError("Could not stabilize VAR lag matrices")
+
+
 def make_sparse_matrix(
     d: int,
     edge_prob: float,
@@ -130,10 +174,7 @@ def scenario_order3_unconfounded(
     a1 = make_sparse_matrix(d, edge_prob=0.10, seed=seed + 1) * 0.60
     a2 = make_sparse_matrix(d, edge_prob=0.08, seed=seed + 2) * 0.35
     a3 = make_sparse_matrix(d, edge_prob=0.06, seed=seed + 3) * 0.20
-    total_radius = spectral_radius(a1) + spectral_radius(a2) + spectral_radius(a3)
-    if total_radius > 1e-12:
-        scale = 0.80 / total_radius
-        a1, a2, a3 = scale * a1, scale * a2, scale * a3
+    a1, a2, a3 = scale_var_to_stability([a1, a2, a3])
 
     X = simulate_var(
         T=T,
@@ -207,10 +248,7 @@ def scenario_variable_lag_unconfounded(
     a1 = make_sparse_matrix(d, edge_prob=0.08, seed=seed + 1) * 0.60
     a2 = make_sparse_matrix(d, edge_prob=0.08, seed=seed + 2) * 0.35
     a3 = make_sparse_matrix(d, edge_prob=0.05, seed=seed + 3) * 0.20
-    total_radius = spectral_radius(a1) + spectral_radius(a2) + spectral_radius(a3)
-    if total_radius > 1e-12:
-        scale = 0.80 / total_radius
-        a1, a2, a3 = scale * a1, scale * a2, scale * a3
+    a1, a2, a3 = scale_var_to_stability([a1, a2, a3])
 
     X = simulate_var(
         T=T,
@@ -278,10 +316,7 @@ def scenario_omitted_lag_order(
         a1 = make_sparse_matrix(d, edge_prob=0.10, seed=seed + 1) * 0.60
         a2 = make_sparse_matrix(d, edge_prob=0.08, seed=seed + 2) * 0.35
         a3 = make_sparse_matrix(d, edge_prob=0.06, seed=seed + 3) * 0.20
-        total_radius = spectral_radius(a1) + spectral_radius(a2) + spectral_radius(a3)
-        if total_radius > 1e-12:
-            scale = 0.80 / total_radius
-            a1, a2, a3 = scale * a1, scale * a2, scale * a3
+        a1, a2, a3 = scale_var_to_stability([a1, a2, a3])
         lag_matrices = [a1, a2, a3]
     else:
         raise ValueError(f"Unsupported true_order: {true_order}")

@@ -436,7 +436,7 @@ def plot_scenario_schematic(path: Path) -> None:
     )
 
     axis = axes[0, 1]
-    axis.set_title("b  Order-3 unconfounded", loc="left", fontweight="bold")
+    axis.set_title("b  Order-3 omitted history", loc="left", fontweight="bold")
     for x, label in zip(
         (0.12, 0.34, 0.56),
         (r"$X_{t-3}$", r"$X_{t-2}$", r"$X_{t-1}$"),
@@ -448,7 +448,7 @@ def plot_scenario_schematic(path: Path) -> None:
     axis.text(
         0.5,
         0.18,
-        "three sparse lag matrices\nQC-excluded: 3/10 explosive repeats",
+        "omitted-history mechanism\nQC-excluded: 3/10 explosive repeats",
         ha="center",
         va="center",
         fontsize=9,
@@ -478,7 +478,7 @@ def plot_scenario_schematic(path: Path) -> None:
     )
 
     axis = axes[1, 1]
-    axis.set_title("d  Variable-lag unconfounded", loc="left", fontweight="bold")
+    axis.set_title("d  Variable-lag omitted history", loc="left", fontweight="bold")
     source_nodes = (
         ((0.18, 0.74), r"$X_{t-1}^{(j)}$"),
         ((0.18, 0.50), r"$X_{t-2}^{(k)}$"),
@@ -491,7 +491,7 @@ def plot_scenario_schematic(path: Path) -> None:
     axis.text(
         0.5,
         0.08,
-        "lower-density sparse order-3 variant\n"
+        "heterogeneous omitted-history mechanism\n"
         "QC-excluded: 3/10 explosive repeats",
         ha="center",
         va="center",
@@ -618,12 +618,14 @@ This secondary endpoint was also zero for every order-1 null run.
 
 ## Interpretation
 
-These results support sensitivity to one specified hidden-memory mechanism:
-the same fixed-horizon learner is stable for a clean order-1 process and
-changes when an autocorrelated latent common driver is added. They do not
-establish specificity against higher-order or heterogeneous-lag alternatives,
-because the two intended control families failed numerical quality control.
-They also do not imply graph-recovery accuracy; stability and correctness are
+These results support the paper's diagnostic claim for one hidden-memory
+mechanism: the same fixed-horizon learner is stable for a clean order-1 process
+and changes when an autocorrelated latent common driver is added. The target is
+hidden memory or observed-state inadequacy, not unique attribution to latent
+confounding. The two higher-order families were intended to test additional
+omitted-history mechanisms, but their numerical quality-control failure
+prevents a claim about the breadth of detection across mechanisms. The results
+also do not imply graph-recovery accuracy; stability and correctness are
 different properties. No surrogate-null calibration was performed here, so
 the exact paired randomization tests compare simulated scenario families and
 are not bootstrap-calibrated tests for an individual dataset.

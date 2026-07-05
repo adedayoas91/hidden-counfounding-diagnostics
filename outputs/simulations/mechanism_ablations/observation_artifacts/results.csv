@@ -1,2 +1,5 @@
-mechanism,status
-observation_artifacts,pending_full_rerun
+scenario,method,repeats,mean_T_obs
+measurement_noise,gcstar_cgc,10,0.005555555555555556
+measurement_noise,gcstar_fcgc,10,0.005555555555555556
+undersampling,gcstar_cgc,10,0.013333333333333332
+undersampling,gcstar_fcgc,10,0.01111111111111111

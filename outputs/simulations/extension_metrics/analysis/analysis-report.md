@@ -37,12 +37,14 @@ This secondary endpoint was also zero for every order-1 null run.
 
 ## Interpretation
 
-These results support sensitivity to one specified hidden-memory mechanism:
-the same fixed-horizon learner is stable for a clean order-1 process and
-changes when an autocorrelated latent common driver is added. They do not
-establish specificity against higher-order or heterogeneous-lag alternatives,
-because the two intended control families failed numerical quality control.
-They also do not imply graph-recovery accuracy; stability and correctness are
+These results support the paper's diagnostic claim for one hidden-memory
+mechanism: the same fixed-horizon learner is stable for a clean order-1 process
+and changes when an autocorrelated latent common driver is added. The target is
+hidden memory or observed-state inadequacy, not unique attribution to latent
+confounding. The two higher-order families were intended to test additional
+omitted-history mechanisms, but their numerical quality-control failure
+prevents a claim about the breadth of detection across mechanisms. The results
+also do not imply graph-recovery accuracy; stability and correctness are
 different properties. No surrogate-null calibration was performed here, so
 the exact paired randomization tests compare simulated scenario families and
 are not bootstrap-calibrated tests for an individual dataset.

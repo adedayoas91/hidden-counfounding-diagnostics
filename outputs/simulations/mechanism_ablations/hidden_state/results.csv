@@ -1,2 +1,7 @@
-mechanism,status
-hidden_state,pending_full_rerun
+scenario,method,repeats,mean_T_obs
+latent_confounder,gcstar_cgc,10,0.03333333333333333
+latent_confounder,gcstar_fcgc,10,0.01888888888888889
+hidden_nodes,gcstar_cgc,10,0.03
+hidden_nodes,gcstar_fcgc,10,0.026666666666666665
+omitted_lag_order,gcstar_cgc,10,0.024444444444444442
+omitted_lag_order,gcstar_fcgc,10,0.025555555555555554

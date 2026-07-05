@@ -1,2 +1,5 @@
-mechanism,status
-nonstationarity,pending_full_rerun
+scenario,method,repeats,mean_T_obs
+time_varying_coefficients,gcstar_cgc,10,0.01
+time_varying_coefficients,gcstar_fcgc,10,0.01
+regime_shift,gcstar_cgc,10,0.016666666666666666
+regime_shift,gcstar_fcgc,10,0.016666666666666666
