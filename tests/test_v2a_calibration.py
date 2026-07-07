@@ -460,14 +460,19 @@ def test_dynamic_pointwise_plot_supports_eight_panels(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "method_dir",
-    ["c-GC", "c-GC-star", "pcmciplus"],
+    "recording",
+    [
+        "220119_F2_run11",
+        "220127_F4_run2",
+        "220210_F1_run6",
+        "220210_F2_run5",
+    ],
 )
-def test_method_calibration_notebooks_are_isolated_and_use_pickle_contract(
-    method_dir,
+def test_recording_calibration_notebooks_are_isolated_and_use_pickle_contract(
+    recording,
 ):
     calibration_dir = Path(__file__).parents[1] / "notebooks" / "calibration"
-    notebook_path = calibration_dir / f"bootstrap_null_v2a_{method_dir}.ipynb"
+    notebook_path = calibration_dir / f"bootstrap_null_v2a_{recording}.ipynb"
     notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
     code_source = "\n".join(
         "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
@@ -475,15 +480,17 @@ def test_method_calibration_notebooks_are_isolated_and_use_pickle_contract(
         if cell["cell_type"] == "code"
     )
 
-    assert f"METHOD_DIR = '{method_dir}'" in code_source
-    assert "METHOD_DIRS" not in code_source
+    assert f"RECORDING = '{recording}'" in code_source
+    assert "'method_dir': 'c-GC'" in code_source
+    assert "'method_dir': 'c-GC-star'" in code_source
+    assert "'method_dir': 'pcmciplus'" not in code_source
     assert "load_v2a_calibration_input" in code_source
     assert "run_resumable_v2a_calibration" in code_source
     assert "transitions.csv" not in code_source
     assert "edge_count_p" not in code_source
     assert "hash(" not in code_source
     assert "ANALYSIS_PROFILE = V2A_ANALYSIS_PROFILE" in code_source
-    assert "/ ANALYSIS_PROFILE\n    / METHOD_DIR" in code_source
+    assert "/ ANALYSIS_PROFILE\n    / RECORDING" in code_source
     assert "P_VALUES = [1, 2, 3, 4, 5, 6, 7]" in code_source
     assert "analysis_profile=ANALYSIS_PROFILE" in code_source
     assert (
@@ -492,17 +499,27 @@ def test_method_calibration_notebooks_are_isolated_and_use_pickle_contract(
     )
     assert "metadata.get('gcstar_params')" in code_source
     assert "metadata.get('tigramite_params')" in code_source
-    assert "checkpoint_dir = OUTPUT_DIR / 'checkpoints' / recording" in code_source
-    assert "run_output_path = OUTPUT_DIR / recording / 'bootstrap.json'" in code_source
+    assert "checkpoint_dir = method_output_dir / 'checkpoints'" in code_source
+    assert "run_output_path = method_output_dir / 'bootstrap.json'" in code_source
+    assert "show_progress=SHOW_PROGRESS" in code_source
+    assert "B is a cumulative target" in code_source
     assert all(not cell.get("outputs") for cell in notebook["cells"])
 
 
-def test_aggregate_v2a_calibration_notebook_was_replaced():
+def test_v2a_calibration_notebooks_are_recording_split():
     calibration_dir = Path(__file__).parents[1] / "notebooks" / "calibration"
 
     assert not (calibration_dir / "bootstrap_null_v2a.ipynb").exists()
-    assert len(list(calibration_dir.glob("bootstrap_null_v2a_*.ipynb"))) == 3
+    assert not (calibration_dir / "bootstrap_null_v2a_c-GC.ipynb").exists()
+    assert not (calibration_dir / "bootstrap_null_v2a_c-GC-star.ipynb").exists()
+    assert not (calibration_dir / "bootstrap_null_v2a_pcmciplus.ipynb").exists()
     assert not (calibration_dir / "bootstrap_null_v2a_jpcmciplus.ipynb").exists()
+    assert sorted(path.name for path in calibration_dir.glob("bootstrap_null_v2a_*.ipynb")) == [
+        "bootstrap_null_v2a_220119_F2_run11.ipynb",
+        "bootstrap_null_v2a_220127_F4_run2.ipynb",
+        "bootstrap_null_v2a_220210_F1_run6.ipynb",
+        "bootstrap_null_v2a_220210_F2_run5.ipynb",
+    ]
 
 
 def test_connectivity_notebooks_use_shared_profile_and_seven_depths():
