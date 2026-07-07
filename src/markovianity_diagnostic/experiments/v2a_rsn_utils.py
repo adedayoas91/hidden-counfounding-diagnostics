@@ -21,16 +21,16 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-V2A_ANALYSIS_PROFILE = 'n50-e18-r32'
+V2A_ANALYSIS_PROFILE = 'n25-e9-r16'
 V2A_PROFILE_RECORDINGS = frozenset({
     '220119_F2_run11',
     '220127_F4_run2',
     '220210_F1_run6',
     '220210_F2_run5',
 })
-V2A_PROFILE_N_EMITTERS = 18
-V2A_PROFILE_N_RECEIVERS = 32
-V2A_PROFILE_EXPECTED_TOTAL = 50
+V2A_PROFILE_N_EMITTERS = 9
+V2A_PROFILE_N_RECEIVERS = 16
+V2A_PROFILE_EXPECTED_TOTAL = 25
 V2A_SELECTION_BASE_SEED = 20260704
 
 
@@ -520,7 +520,7 @@ def _select_v2a_role_indices(
     if overlap.size:
         raise ValueError(
             f"{recording_id} has {overlap.size} cells assigned to both emitter "
-            "and receiver roles; the fixed 18/32 stratified sample requires "
+            "and receiver roles; the fixed 9/16 stratified sample requires "
             "disjoint role pools."
         )
 
@@ -552,7 +552,7 @@ def get_v2a_selected_cell_indices(recording_dir: Path, recording_id: str) -> np.
     """Load selected cell indices for a v2a-RSN recording.
 
     The four biological analysis recordings use the deterministic
-    ``n50-e18-r32`` profile. Other recordings retain the ordered union behavior
+    ``n25-e9-r16`` profile. Other recordings retain the ordered union behavior
     used by lightweight fixtures and exploratory data.
     """
     selected_emitter, selected_receiver, seed, strategy = _select_v2a_role_indices(

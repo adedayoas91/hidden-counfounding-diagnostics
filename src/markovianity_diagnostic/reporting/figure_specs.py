@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from ..experiments.v2a_rsn_utils import V2A_ANALYSIS_PROFILE
+
 
 FIGURE_SPECS: dict[str, dict] = {
     "Figure1_DepthSelection": {
         "name": "Figure1_DepthSelection",
         "source_data_paths": [
-            "outputs/v2a-RSNs/n50-e18-r32/depth_selection/depth_selection.json",
-            "outputs/v2a-RSNs/n50-e18-r32/depth_selection/depth_selection_plot.png",
+            f"outputs/v2a-RSNs/{V2A_ANALYSIS_PROFILE}/depth_selection/depth_selection.json",
+            f"outputs/v2a-RSNs/{V2A_ANALYSIS_PROFILE}/depth_selection/depth_selection_plot.png",
         ],
         "output_path": "nature_methods/figures/Figure1_DepthSelection.png",
         "caption": """
@@ -25,7 +27,7 @@ track subsequent stabilization or persistent depth sensitivity.
     "Figure2_EdgeInstability": {
         "name": "Figure2_EdgeInstability",
         "source_data_paths": [
-            "outputs/v2a-RSNs/n50-e18-r32/edge_localization/manifest.json",
+            f"outputs/v2a-RSNs/{V2A_ANALYSIS_PROFILE}/edge_localization/manifest.json",
         ],
         "output_path": "nature_methods/figures/Figure2_EdgeInstability.png",
         "caption": """

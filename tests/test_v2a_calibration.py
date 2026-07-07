@@ -21,6 +21,7 @@ from markovianity_diagnostic.experiments.v2a_calibration import (
     run_resumable_v2a_calibration,
 )
 from markovianity_diagnostic.experiments.v2a_rsn_utils import (
+    V2A_ANALYSIS_PROFILE,
     get_v2a_selection_metadata,
 )
 
@@ -128,7 +129,7 @@ def test_discover_recordings_requires_complete_pickles_for_every_method(tmp_path
 
 
 def test_profile_input_and_discovery_use_isolated_output_namespace(tmp_path):
-    profile = "n50-e18-r32"
+    profile = V2A_ANALYSIS_PROFILE
     _write_recording_fixture(
         tmp_path,
         method_dir="c-GC",
@@ -161,7 +162,7 @@ def test_profile_input_and_discovery_use_isolated_output_namespace(tmp_path):
 
 
 def test_profile_input_rejects_mismatched_trace_selection_metadata(tmp_path):
-    profile = "n50-e18-r32"
+    profile = V2A_ANALYSIS_PROFILE
     _write_recording_fixture(
         tmp_path,
         method_dir="c-GC",

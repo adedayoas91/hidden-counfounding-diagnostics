@@ -102,11 +102,11 @@ def test_get_v2a_selected_cell_indices_uses_ordered_role_union(tmp_path):
 
 
 @pytest.mark.parametrize("recording_id", sorted(V2A_PROFILE_RECORDINGS))
-def test_profile_recordings_use_reproducible_random_18_32_role_sample(
+def test_profile_recordings_use_reproducible_random_9_16_role_sample(
     tmp_path,
     recording_id,
 ):
-    """Every biological recording should use the same seeded 50-cell profile."""
+    """Every biological recording should use the same seeded 25-cell profile."""
     emitters = np.arange(0, 80)
     receivers = np.arange(100, 180)
     np.save(tmp_path / f"{recording_id}_emitter_cells.npy", emitters)
@@ -116,25 +116,25 @@ def test_profile_recordings_use_reproducible_random_18_32_role_sample(
     second = get_v2a_selected_cell_indices(tmp_path, recording_id)
     metadata = get_v2a_selection_metadata(tmp_path, recording_id)
 
-    assert first.shape == (50,)
+    assert first.shape == (25,)
     np.testing.assert_array_equal(first, second)
-    assert np.isin(first[:18], emitters).all()
-    assert np.isin(first[18:], receivers).all()
-    assert not np.array_equal(first[:18], emitters[:18])
-    assert not np.array_equal(first[18:], receivers[:32])
+    assert np.isin(first[:9], emitters).all()
+    assert np.isin(first[9:], receivers).all()
+    assert not np.array_equal(first[:9], emitters[:9])
+    assert not np.array_equal(first[9:], receivers[:16])
     assert metadata["analysis_profile"] == V2A_ANALYSIS_PROFILE
     assert metadata["selection_strategy"] == "seeded_stratified_without_replacement"
-    assert metadata["n_emitters"] == 18
-    assert metadata["n_receivers"] == 32
-    assert metadata["expected_total"] == 50
+    assert metadata["n_emitters"] == 9
+    assert metadata["n_receivers"] == 16
+    assert metadata["expected_total"] == 25
     assert isinstance(metadata["selection_seed"], int)
-    assert metadata["selected_emitter_indices"] == first[:18].tolist()
-    assert metadata["selected_receiver_indices"] == first[18:].tolist()
+    assert metadata["selected_emitter_indices"] == first[:9].tolist()
+    assert metadata["selected_receiver_indices"] == first[9:].tolist()
     assert metadata["selected_cell_indices"] == first.tolist()
 
 
-def test_profile_trace_subset_has_50_rows(tmp_path):
-    """Trace subsetting should apply the seeded 18-emitter/32-receiver sample."""
+def test_profile_trace_subset_has_25_rows(tmp_path):
+    """Trace subsetting should apply the seeded 9-emitter/16-receiver sample."""
     recording_id = "220210_F1_run6"
     emitters = np.arange(0, 80)
     receivers = np.arange(100, 180)
@@ -145,17 +145,17 @@ def test_profile_trace_subset_has_50_rows(tmp_path):
     subset = subset_v2a_cells(traces, tmp_path, recording_id)
     selected = get_v2a_selected_cell_indices(tmp_path, recording_id)
 
-    assert subset.shape == (50, 4)
+    assert subset.shape == (25, 4)
     np.testing.assert_array_equal(subset, traces[selected, :])
 
 
 def test_profile_selection_rejects_insufficient_role_counts(tmp_path):
     """The fixed profile must fail instead of silently changing its role ratio."""
     recording_id = "220119_F2_run11"
-    np.save(tmp_path / f"{recording_id}_emitter_cells.npy", np.arange(17))
+    np.save(tmp_path / f"{recording_id}_emitter_cells.npy", np.arange(8))
     np.save(tmp_path / f"{recording_id}_receiver_cells.npy", np.arange(100, 140))
 
-    with pytest.raises(ValueError, match="at least 18 emitters and 32 receivers"):
+    with pytest.raises(ValueError, match="at least 9 emitters and 16 receivers"):
         get_v2a_selected_cell_indices(tmp_path, recording_id)
 
 

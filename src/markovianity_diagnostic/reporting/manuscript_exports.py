@@ -15,6 +15,7 @@ from .tables import (
     export_comparison_table,
     export_depth_selection_table,
 )
+from ..experiments.v2a_rsn_utils import V2A_ANALYSIS_PROFILE
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ def generate_all_tables(output_base_dir: str) -> list[dict[str, Any]]:
         df = export_depth_selection_table(
             str(
                 base_path
-                / "outputs/v2a-RSNs/n50-e18-r32/depth_selection/depth_selection.json"
+                / f"outputs/v2a-RSNs/{V2A_ANALYSIS_PROFILE}/depth_selection/depth_selection.json"
             )
         )
         if not df.empty:
