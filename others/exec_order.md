@@ -71,9 +71,18 @@ Expected outputs include `outputs/v2a-RSNs/n25-e9-r16/depth_selection/depth_sele
 
 | Step | Notebook | Depends on | What it does | Why it is required / result contribution |
 | --- | --- | --- | --- | --- |
-| 3.1 | `notebooks/real_data/v2a_edgewise_localization.ipynb` | Phase 0 outputs; Phase 1 outputs for calibrated edge FDR | Localizes which directed edges or node pairs contribute most to depth-dependent instability. | Moves the real-data result from a global diagnostic to interpretable network-level evidence. With calibration outputs, it can support edgewise FDR or instability-threshold claims; without calibration it should be reported as descriptive. |
+| 3.1 | `notebooks/real_data/v2a_edgewise_localization_c-GC.ipynb`<br>`notebooks/real_data/v2a_edgewise_localization_c-GC-star.ipynb`<br>then `notebooks/real_data/v2a_edgewise_localization_aggregate.ipynb` | Phase 0 outputs; Phase 1 outputs for calibrated edge FDR | Localizes which directed edges or node pairs contribute most to depth-dependent instability in method-isolated shards, then aggregates the canonical edge tables. | Moves the real-data result from a global diagnostic to interpretable network-level evidence. With calibration outputs, it can support edgewise FDR or instability-threshold claims; without calibration it should be reported as descriptive. |
 
-Use `notebooks/real_data/v2a_edgewise_localization.ipynb` as the canonical new notebook. Any older duplicate under `notebooks/v2a-RSNs/` should be treated as a legacy mirror unless it has been intentionally synchronized.
+Use the split `notebooks/real_data/v2a_edgewise_localization_*` notebooks as
+the canonical calibrated workflow. The two method shards can run
+asynchronously because they write to
+`outputs/v2a-RSNs/n25-e9-r16/edge_localization/by_method/c-GC/` and
+`outputs/v2a-RSNs/n25-e9-r16/edge_localization/by_method/c-GC-star/`.
+Run the aggregate notebook after both shards complete; it writes the canonical
+`edge_instability.csv`, `edge_fdr.csv`, and manifest under
+`outputs/v2a-RSNs/n25-e9-r16/edge_localization/`. Any older duplicate under
+`notebooks/v2a-RSNs/` should be treated as a legacy mirror unless it has been
+intentionally synchronized.
 
 Expected outputs include `outputs/v2a-RSNs/n25-e9-r16/edge_localization/edge_instability.csv`, `edge_fdr.csv`, heatmaps, and a manifest.
 
@@ -123,21 +132,29 @@ Expected outputs include sensitivity summaries under `outputs/comparisons/nonlin
 
 | Step | Notebook | Depends on | What it does | Why it is required / result contribution |
 | --- | --- | --- | --- | --- |
-| 8.1 | `notebooks/power/sample_size_power_analysis.ipynb` | Synthetic generators and diagnostic code | Sweeps sample size, effect size, and related simulation settings. | Defines when the diagnostic has enough power to detect the target mechanism. This contributes operating-regime guidance and helps interpret null results. |
+| 8.1 | `notebooks/power/sample_size_power_analysis_c-GC.ipynb`<br>`notebooks/power/sample_size_power_analysis_c-GC-star.ipynb`<br>then `notebooks/power/sample_size_power_analysis_aggregate.ipynb` | Synthetic generators and diagnostic code | Sweeps sample size, effect size, and related simulation settings in method-isolated shards, then aggregates the results. | Defines when the diagnostic has enough power to detect the target mechanism. This contributes operating-regime guidance and helps interpret null results. |
 
 This can run in parallel with Phases 4-7 after preflight.
 
-Expected outputs include power curves, summary tables, and manifests under `outputs/power/sample_size_power/`.
+The two method shards can run asynchronously because they write to
+`outputs/power/sample_size_power/by_method/c-GC/` and
+`outputs/power/sample_size_power/by_method/c-GC-star/`. Run the aggregate
+notebook after both shards complete; it writes the canonical power curves,
+summary tables, and manifest under `outputs/power/sample_size_power/`.
 
 ## Phase 9: Runtime Scaling
 
 | Step | Notebook | Depends on | What it does | Why it is required / result contribution |
 | --- | --- | --- | --- | --- |
-| 9.1 | `notebooks/power/runtime_scaling.ipynb` | Diagnostic code and representative benchmark settings | Measures runtime as the number of variables, conditioning depth, sample size, or bootstrap count changes. | Provides computational feasibility evidence and helps justify practical recommendations for running the method. |
+| 9.1 | `notebooks/power/runtime_scaling_c-GC.ipynb`<br>`notebooks/power/runtime_scaling_c-GC-star.ipynb`<br>then `notebooks/power/runtime_scaling_aggregate.ipynb` | Diagnostic code and representative benchmark settings | Measures runtime as the number of variables, conditioning depth, sample size, or bootstrap count changes in method-isolated shards, then aggregates the results. | Provides computational feasibility evidence and helps justify practical recommendations for running the method. |
 
 This can run in parallel with Phases 4-8 after preflight.
 
-Expected outputs include runtime tables, scaling plots, and manifests under `outputs/power/runtime_scaling/`.
+The two method shards can run asynchronously because they write to
+`outputs/power/runtime_scaling/by_method/c-GC/` and
+`outputs/power/runtime_scaling/by_method/c-GC-star/`. Run the aggregate
+notebook after both shards complete; it writes the canonical runtime table,
+scaling plot, and manifest under `outputs/power/runtime_scaling/`.
 
 ## Phase 10: Reporting and Manuscript Figure Assembly
 
