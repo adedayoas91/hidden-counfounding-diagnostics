@@ -548,8 +548,6 @@ def test_connectivity_notebooks_use_shared_profile_and_seven_depths():
     [
         ("real_data/v2a_depth_selection.ipynb", "V2A_OUTPUT_DIR ="),
         ("real_data/v2a_edgewise_localization.ipynb", "V2A_ANALYSIS_PROFILE"),
-        ("v2a-RSNs/v2a_depth_selection.ipynb", "V2A_OUTPUT_DIR ="),
-        ("v2a-RSNs/v2a_edgewise_localization.ipynb", "V2A_ANALYSIS_PROFILE"),
         ("v2a-RSNs/compare_all_methods.ipynb", "V2A_OUTPUT_DIR ="),
     ],
 )
@@ -570,6 +568,52 @@ def test_v2a_downstream_notebooks_use_profile_namespace(
     assert "/ 'outputs' / 'v2a-RSNs' / 'c-GC-star'" not in code_source
 
 
+def test_v2a_depth_selection_wires_bootstrap_calibration_outputs():
+    notebook_path = (
+        Path(__file__).parents[1]
+        / "notebooks"
+        / "real_data"
+        / "v2a_depth_selection.ipynb"
+    )
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    code_source = "\n".join(
+        "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+
+    assert "V2A_CALIBRATION_DIR" in code_source
+    assert "/ 'calibration' / 'v2a' / V2A_ANALYSIS_PROFILE" in code_source
+    assert "run_payload_path = V2A_CALIBRATION_DIR / recording / method / 'bootstrap.json'" in code_source
+    assert "aggregate_payload_path = V2A_CALIBRATION_DIR / recording / 'bootstrap_results.json'" in code_source
+    assert "D_boot_pointwise" in code_source
+    assert "calibration_status" in code_source
+    assert "depth_selection_calibrated_summary.csv" in code_source
+
+
+def test_v2a_depth_selection_maps_recordings_to_sequential_fish_labels():
+    notebook_path = (
+        Path(__file__).parents[1]
+        / "notebooks"
+        / "real_data"
+        / "v2a_depth_selection.ipynb"
+    )
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    code_source = "\n".join(
+        "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+
+    assert "c_gc_datasets = [entry['dataset'] for entry in c_gc_data]" in code_source
+    assert "c_gc_star_datasets = [entry['dataset'] for entry in c_gc_star_data]" in code_source
+    assert "for index, dataset in enumerate(c_gc_datasets, start=1)" in code_source
+    assert "entry['fish'] = fish_mapping[entry['dataset']]" in code_source
+    assert "fish_ids = [fish_mapping[dataset] for dataset in c_gc_datasets]" in code_source
+    assert "fish_mapping = {fid: f'fish-{i+1}' for i, fid in enumerate(fish_ids)}" not in code_source
+    assert "fish_label_from_id" not in code_source
+
+
 def test_v2a_profile_notebook_code_cells_parse():
     notebooks_root = Path(__file__).parents[1] / "notebooks"
     notebook_paths = [
@@ -577,8 +621,9 @@ def test_v2a_profile_notebook_code_cells_parse():
         *sorted((notebooks_root / "calibration").glob("bootstrap_null_v2a_*.ipynb")),
         notebooks_root / "real_data" / "v2a_depth_selection.ipynb",
         notebooks_root / "real_data" / "v2a_edgewise_localization.ipynb",
-        notebooks_root / "v2a-RSNs" / "v2a_depth_selection.ipynb",
-        notebooks_root / "v2a-RSNs" / "v2a_edgewise_localization.ipynb",
+        notebooks_root / "real_data" / "v2a_edgewise_localization_c-GC.ipynb",
+        notebooks_root / "real_data" / "v2a_edgewise_localization_c-GC-star.ipynb",
+        notebooks_root / "real_data" / "v2a_edgewise_localization_aggregate.ipynb",
         notebooks_root / "v2a-RSNs" / "compare_all_methods.ipynb",
     ]
 
