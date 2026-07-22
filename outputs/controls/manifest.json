@@ -1,0 +1,65 @@
+{
+  "created_at": "2026-07-05T21:19:12.681365+00:00",
+  "git_commit": "87171ec",
+  "analysis": "Phase 5.2 Positive and Negative Controls",
+  "real_data_recording": "220119_F2_run11",
+  "input_paths": [
+    "Synthetic controls generated in-notebook",
+    "/Users/sadiq.adedayo/Documents/projects/others/hidden-counfounding-diagnostics/data/v2a-RSNs/220119_F2_run11"
+  ],
+  "output_paths": [
+    "/Users/sadiq.adedayo/Documents/projects/others/hidden-counfounding-diagnostics/outputs/controls/control_summary.csv",
+    "/Users/sadiq.adedayo/Documents/projects/others/hidden-counfounding-diagnostics/outputs/controls/control_results.json",
+    "/Users/sadiq.adedayo/Documents/projects/others/hidden-counfounding-diagnostics/outputs/controls/control_curves.png",
+    "/Users/sadiq.adedayo/Documents/projects/others/hidden-counfounding-diagnostics/outputs/controls/config.json",
+    "/Users/sadiq.adedayo/Documents/projects/others/hidden-counfounding-diagnostics/outputs/controls/manifest.json"
+  ],
+  "method": "optimized c-GC fixed-lag depth sweep",
+  "method_params": {
+    "p_values": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "analysis_method": "fast_gcstar_cgc",
+    "synthetic_T": 2000,
+    "synthetic_d": 10,
+    "synthetic_repeats": 10
+  },
+  "control_types": {
+    "synthetic_null_order1": "Markov order-1 null (low instability after p=1)",
+    "synthetic_null_order3": "Markov order-3 null (low instability after p=3)",
+    "synthetic_latent_confounder": "Latent common driver (positive control)",
+    "synthetic_hidden_nodes": "Hidden nodes (positive control)",
+    "real_time_shuffled": "v2a-RSN time-shuffled (negative control)",
+    "real_block_shuffled": "v2a-RSN block-shuffled (negative control)",
+    "real_phase_randomized": "v2a-RSN phase-randomized (negative control)",
+    "real_circularly_shifted": "v2a-RSN circularly shifted (negative control)"
+  },
+  "key_findings": {
+    "null_controls": {
+      "mean_T_obs_order1": 0.015555555555555553,
+      "mean_T_obs_order3": 0.015555555555555555,
+      "interpretation": "Low instability expected after true Markov order"
+    },
+    "positive_controls": {
+      "mean_T_obs_latent": 0.03333333333333333,
+      "mean_T_obs_hidden": 0.03,
+      "interpretation": "Higher instability expected from latent confounding"
+    },
+    "real_data_controls": {
+      "shuffled_types": 4,
+      "interpretation": "Shuffled versions should show different structure than biological"
+    }
+  },
+  "random_seed": 42,
+  "software_versions": {
+    "python": "3.12.3",
+    "numpy": "2.4.4",
+    "pandas": "3.0.2"
+  }
+}

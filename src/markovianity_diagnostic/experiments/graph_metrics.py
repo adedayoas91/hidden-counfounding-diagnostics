@@ -126,26 +126,36 @@ def compute_stability_test_statistic(d_p: dict[int, float]) -> float:
 
 
 def recovery_metrics(predicted: np.ndarray, truth: np.ndarray) -> dict[str, float]:
-    """Compute accuracy, precision, recall, and FPR for binary graphs."""
+    """Compute binary graph recovery metrics, including balanced accuracy and F1."""
 
-    predicted = zero_diagonal(predicted).astype(int)
-    truth = zero_diagonal(truth).astype(int)
+    if predicted.shape != truth.shape or predicted.ndim != 2:
+        raise ValueError("predicted and truth must be equally shaped square matrices")
+    predicted = (zero_diagonal(predicted) != 0).astype(int)
+    truth = (zero_diagonal(truth) != 0).astype(int)
+    off_diagonal = ~np.eye(predicted.shape[0], dtype=bool)
+    predicted_values = predicted[off_diagonal]
+    truth_values = truth[off_diagonal]
 
-    tp = int(np.logical_and(predicted == 1, truth == 1).sum())
-    tn = int(np.logical_and(predicted == 0, truth == 0).sum())
-    fp = int(np.logical_and(predicted == 1, truth == 0).sum())
-    fn = int(np.logical_and(predicted == 0, truth == 1).sum())
+    tp = int(np.logical_and(predicted_values == 1, truth_values == 1).sum())
+    tn = int(np.logical_and(predicted_values == 0, truth_values == 0).sum())
+    fp = int(np.logical_and(predicted_values == 1, truth_values == 0).sum())
+    fn = int(np.logical_and(predicted_values == 0, truth_values == 1).sum())
 
     total = tp + tn + fp + fn
     accuracy = (tp + tn) / total if total else 0.0
     precision = tp / (tp + fp) if (tp + fp) else 0.0
     recall = tp / (tp + fn) if (tp + fn) else 0.0
     fpr = fp / (fp + tn) if (fp + tn) else 0.0
+    specificity = tn / (tn + fp) if (tn + fp) else 0.0
+    balanced_accuracy = (recall + specificity) / 2
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     return {
         "accuracy": float(accuracy),
         "precision": float(precision),
         "recall": float(recall),
         "fpr": float(fpr),
+        "balanced_accuracy": float(balanced_accuracy),
+        "f1": float(f1),
         "tp": float(tp),
         "fp": float(fp),
         "tn": float(tn),
@@ -167,6 +177,7 @@ def summarize_run(
         "D_parts": d_parts,
         "edge_counts": counts,
         "T_obs": compute_stability_test_statistic(d_stats),
+        "cumulative_instability": float(sum(d_stats.values())),
     }
     if truth is not None:
         summary["metrics_by_p"] = {
@@ -209,6 +220,7 @@ def compute_graph_stability_metrics(
         "D_p": d_p,
         "D_parts": d_parts,
         "T_obs": compute_stability_test_statistic(d_p),
+        "cumulative_instability": float(sum(d_p.values())),
     }
 
 

@@ -9,9 +9,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
+from markovianity_diagnostic.experiments.v2a_rsn_utils import V2A_ANALYSIS_PROFILE
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = PROJECT_ROOT / "outputs" / "v2a-RSNs"
+OUTPUT_DIR = PROJECT_ROOT / "outputs" / "v2a-RSNs" / V2A_ANALYSIS_PROFILE
 
 METHODS = {
     "c-GC": {
@@ -78,7 +80,7 @@ def plot_method(
         axis.set_title(labels[recording])
         axis.set_xlabel(r"$n_{\mathrm{pasts}}$")
         axis.set_ylabel("Normalized instability")
-        axis.set_xticks(range(2, 8))
+        axis.set_xticks(range(2, 6))
 
     handles, legend_labels = axes.ravel()[0].get_legend_handles_labels()
     fig.legend(handles, legend_labels, loc="upper center", ncol=3)
@@ -118,7 +120,7 @@ def plot_overlay(
         axis.set_title(labels[recording])
         axis.set_xlabel(r"$n_{\mathrm{pasts}}$")
         axis.set_ylabel("Normalized instability")
-        axis.set_xticks(range(2, 8))
+        axis.set_xticks(range(2, 6))
         axis.grid(True, linestyle=":", linewidth=0.7, alpha=0.45)
 
     metric_handles = [

@@ -12,9 +12,9 @@ def adj_mtx(n_neur):
     return A
 
 
-def continuous_noise_fun(num, l):
-    xx = np.linspace(0,500,l)
-    noise = np.zeros((num,l))
+def continuous_noise_fun(num, length):
+    xx = np.linspace(0, 500, length)
+    noise = np.zeros((num, length))
     for i in range(num):
         a = 2*np.random.normal(0,0.25,size=6)
         c = 500*(np.random.random(size=6))

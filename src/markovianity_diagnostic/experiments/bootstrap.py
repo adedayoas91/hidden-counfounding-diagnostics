@@ -6,7 +6,9 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as np
+from joblib import Parallel, delayed
 
+from .calibration import NullModel
 from .graph_metrics import compute_graph_instability
 
 
@@ -144,4 +146,63 @@ def bootstrap_global_test(
         "p0": int(p0),
         "B": int(B),
         "block_length": int(block_length),
+    }
+
+
+def calibrated_global_test(
+    X: np.ndarray,
+    *,
+    analyze_fn: Callable[[np.ndarray, list[int]], dict[int, np.ndarray]],
+    p_values: list[int],
+    p0: int,
+    null_model: NullModel,
+    B: int = 200,
+    seed: int = 0,
+    n_jobs: int = 1,
+) -> dict[str, Any]:
+    """Calibrate graph instability using an explicit ``NullModel``.
+
+    This is the production path used by the CLI. It keeps the selected null
+    model and parallelism semantically active instead of merely recording them
+    in output metadata.
+    """
+    if B < 1:
+        raise ValueError("B must be >= 1")
+    if n_jobs == 0:
+        raise ValueError("n_jobs cannot be zero")
+    if sorted(set(p_values)) != p_values or len(p_values) < 2:
+        raise ValueError("p_values must contain at least two unique sorted depths")
+    if p0 not in p_values:
+        raise ValueError("p0 must be included in p_values")
+
+    observed_adjacencies = analyze_fn(X, p_values)
+    T_obs, D_obs = max_instability_after_p0(observed_adjacencies, p0=p0)
+    null_model.fit(X, p0)
+
+    def run_replicate(index: int) -> tuple[float, dict[int, float]]:
+        X_star = null_model.sample(T=len(X), seed=seed + index)
+        adjacencies_star = analyze_fn(X_star, p_values)
+        return max_instability_after_p0(adjacencies_star, p0=p0)
+
+    replicates = Parallel(n_jobs=n_jobs, prefer="threads")(
+        delayed(run_replicate)(index) for index in range(B)
+    )
+    T_boot = np.asarray([item[0] for item in replicates], dtype=float)
+    D_boot = [item[1] for item in replicates]
+    pointwise = {
+        depth: [float(values.get(depth, 0.0)) for values in D_boot]
+        for depth in sorted(D_obs)
+    }
+    p_value = float((1 + np.sum(T_boot >= T_obs)) / (B + 1))
+
+    return {
+        "T_obs": float(T_obs),
+        "D_obs": {int(key): float(value) for key, value in D_obs.items()},
+        "T_boot": T_boot.tolist(),
+        "D_boot": D_boot,
+        "pointwise_samples": pointwise,
+        "p_value": p_value,
+        "p0": int(p0),
+        "B": int(B),
+        "null_model_metadata": null_model.metadata,
     }

@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-06-24T05:28:35.142087+00:00",
+  "dataset": "v2a",
+  "status": "pending_full_rerun",
+  "bootstrap": {
+    "T_boot": [],
+    "critical_95": null,
+    "p_value": null
+  }
+}

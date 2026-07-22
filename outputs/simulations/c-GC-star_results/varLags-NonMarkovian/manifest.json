@@ -1,0 +1,23 @@
+{
+  "created_at": "2026-06-24T04:11:47.005521+00:00",
+  "git_commit": "0cd819e",
+  "analysis": "Simulation varLags-NonMarkovian c-GC-star (Phases 3-6)",
+  "input_paths": [],
+  "output_paths": [
+    "cgcstar_summary.json",
+    "cgcstar_aggregated.json",
+    "cgcstar_metrics.png",
+    "cgcstar_results.csv"
+  ],
+  "software_versions": {
+    "python": "3.12.8",
+    "numpy": "2.5.0",
+    "scipy": "1.18.0",
+    "pandas": "3.0.3"
+  },
+  "method": "c-GC-star",
+  "method_params": {
+    "scenario": "varLags-NonMarkovian",
+    "max_lag": 5
+  }
+}

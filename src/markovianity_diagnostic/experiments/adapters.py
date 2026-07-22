@@ -31,6 +31,25 @@ def _load_gcstar_class() -> type:
 GcStar = _load_gcstar_class()
 
 
+def _load_fast_gcstar_class() -> type:
+    """Load the vectorized ``FastGcStar`` drop-in from the core package."""
+
+    from ..core import FastGcStar
+
+    return FastGcStar
+
+
+FastGcStar = _load_fast_gcstar_class()
+
+PCMCI_FIXED_LAG = 1
+PCMCI_CONDITIONING_PARAMETERS = (
+    "max_conds_dim",
+    "max_conds_py",
+    "max_conds_px",
+    "max_conds_px_lagged",
+)
+
+
 def _design_matrix(X: np.ndarray, p: int) -> tuple[np.ndarray, np.ndarray]:
     """Build a stacked autoregressive design matrix from ``X``."""
 
@@ -89,10 +108,11 @@ def _run_gcstar_single_depth(
     temporal: bool,
     verbose: int,
     simulation: bool,
+    estimator_cls: type = GcStar,
 ) -> np.ndarray:
-    """Run ``GcStar`` for one conditioning depth and return a binary graph."""
+    """Run a ``GcStar``-compatible estimator for one depth and return a binary graph."""
 
-    estimator = GcStar(
+    estimator = estimator_cls(
         n_perm=n_perm,
         n_pasts=int(p),
         n_lags=n_lags,
@@ -120,8 +140,9 @@ def make_gcstar_analyzer(
     temporal: bool = True,
     verbose: int = 0,
     simulation: bool = True,
+    estimator_cls: type = GcStar,
 ) -> Callable[[np.ndarray, list[int]], dict[int, np.ndarray]]:
-    """Create an analyzer function backed by ``GcStar``."""
+    """Create an analyzer function backed by a ``GcStar``-compatible estimator."""
 
     if method not in {"cgc", "fcgc"}:
         raise ValueError("method must be 'cgc' or 'fcgc'.")
@@ -139,6 +160,7 @@ def make_gcstar_analyzer(
                 temporal=temporal,
                 verbose=verbose,
                 simulation=simulation,
+                estimator_cls=estimator_cls,
             )
             for p_value in p_values
         }
@@ -164,7 +186,155 @@ def analyze_with_gcstar_fcgc(
     return make_gcstar_analyzer("fcgc")(X, p_values)
 
 
-def analyze_with_user_method(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
+def analyze_with_fast_gcstar_cgc(
+    X: np.ndarray,
+    p_values: list[int],
+) -> dict[int, np.ndarray]:
+    """Run the vectorized ``FastGcStar`` with the c-GC conditioning set."""
+
+    return make_gcstar_analyzer("cgc", estimator_cls=FastGcStar)(X, p_values)
+
+
+def analyze_with_fast_gcstar_fcgc(
+    X: np.ndarray,
+    p_values: list[int],
+) -> dict[int, np.ndarray]:
+    """Run the vectorized ``FastGcStar`` with the full-conditioning fcGC variant."""
+
+    return make_gcstar_analyzer("fcgc", estimator_cls=FastGcStar)(X, p_values)
+
+
+def _collapse_tigramite_graph(
+    graph: np.ndarray,
+    *,
+    directed_only: bool,
+) -> np.ndarray:
+    """Collapse Tigramite lag marks to the package's target-by-source schema."""
+    n_variables = graph.shape[0]
+    adjacency = np.zeros((n_variables, n_variables), dtype=int)
+    for source in range(graph.shape[0]):
+        for target in range(graph.shape[1]):
+            if source == target:
+                continue
+            marks = [str(mark).strip() for mark in np.ravel(graph[source, target])]
+            if directed_only:
+                present = any(">" in mark and "<" not in mark for mark in marks)
+            else:
+                present = any(mark for mark in marks)
+            adjacency[target, source] = int(present)
+    np.fill_diagonal(adjacency, 0)
+    return adjacency
+
+
+def _pcmciplus_run_kwargs(
+    conditioning_depth: int,
+    *,
+    pc_alpha: float,
+) -> dict[str, int | float]:
+    """Map the shared depth index to PCMCI+ conditioning limits at lag one."""
+
+    depth = int(conditioning_depth)
+    if depth < 1:
+        raise ValueError("PCMCI+ conditioning depth must be at least 1.")
+    kwargs: dict[str, int | float] = {
+        "tau_min": PCMCI_FIXED_LAG,
+        "tau_max": PCMCI_FIXED_LAG,
+        "pc_alpha": float(pc_alpha),
+    }
+    kwargs.update(
+        {parameter: depth for parameter in PCMCI_CONDITIONING_PARAMETERS}
+    )
+    return kwargs
+
+
+def _analyze_with_tigramite(
+    X: np.ndarray,
+    p_values: list[int],
+    *,
+    algorithm: str,
+    pc_alpha: float = 0.05,
+) -> dict[int, np.ndarray]:
+    """Run one Tigramite algorithm over the shared conditioning-depth grid."""
+    from tigramite import data_processing as pp
+
+    output: dict[int, np.ndarray] = {}
+    for depth in p_values:
+        dataframe = pp.DataFrame(np.asarray(X, dtype=float))
+        if algorithm == "pcmciplus":
+            from tigramite.independence_tests.parcorr import ParCorr
+            from tigramite.pcmci import PCMCI
+
+            learner = PCMCI(
+                dataframe=dataframe,
+                cond_ind_test=ParCorr(),
+                verbosity=0,
+            )
+            result = learner.run_pcmciplus(
+                **_pcmciplus_run_kwargs(depth, pc_alpha=pc_alpha)
+            )
+            directed_only = True
+        elif algorithm == "fullci":
+            from tigramite.independence_tests.parcorr import ParCorr
+            from tigramite.pcmci import PCMCI
+
+            learner = PCMCI(
+                dataframe=dataframe,
+                cond_ind_test=ParCorr(),
+                verbosity=0,
+            )
+            result = learner.run_fullci(tau_max=int(depth))
+            directed_only = True
+        elif algorithm == "lpcmci":
+            from tigramite.independence_tests.parcorr import ParCorr
+            from tigramite.lpcmci import LPCMCI
+
+            learner = LPCMCI(
+                dataframe=dataframe,
+                cond_ind_test=ParCorr(significance="analytic"),
+                verbosity=0,
+            )
+            result = learner.run_lpcmci(
+                tau_min=0,
+                tau_max=int(depth),
+                pc_alpha=pc_alpha,
+            )
+            directed_only = False
+        else:  # pragma: no cover - private helper guards this
+            raise ValueError(f"Unknown Tigramite algorithm: {algorithm}")
+
+        output[int(depth)] = _collapse_tigramite_graph(
+            result["graph"],
+            directed_only=directed_only,
+        )
+    return output
+
+
+def analyze_with_pcmciplus(
+    X: np.ndarray,
+    p_values: list[int],
+    *,
+    pc_alpha: float = 0.05,
+) -> dict[int, np.ndarray]:
+    """Run fixed-lag PCMCI+ over maximum conditioning-set sizes."""
+    return _analyze_with_tigramite(
+        X,
+        p_values,
+        algorithm="pcmciplus",
+        pc_alpha=pc_alpha,
+    )
+
+
+def analyze_with_fullci(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
+    return _analyze_with_tigramite(X, p_values, algorithm="fullci")
+
+
+def analyze_with_lpcmci(X: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
+    return _analyze_with_tigramite(X, p_values, algorithm="lpcmci")
+
+
+def analyze_with_user_method(
+    X: np.ndarray, p_values: list[int]
+) -> dict[int, np.ndarray]:
     """Placeholder for user-supplied methods.
 
     Replace this function body if you want to keep the external-method hook
@@ -192,7 +362,9 @@ def normalize_adjacency_output(
             for p_value, value in zip(p_values, raw, strict=True)
         }
     else:
-        raise TypeError("User method must return dict[p, adjacency] or a list of adjacency matrices.")
+        raise TypeError(
+            "User method must return dict[p, adjacency] or a list of adjacency matrices."
+        )
 
     required = {int(p_value) for p_value in p_values}
     missing = sorted(required.difference(output))
@@ -211,7 +383,9 @@ def normalize_adjacency_output(
     return output
 
 
-def load_external_method(spec: str) -> Callable[[np.ndarray, list[int]], dict[int, np.ndarray]]:
+def load_external_method(
+    spec: str,
+) -> Callable[[np.ndarray, list[int]], dict[int, np.ndarray]]:
     """Load an analyzer from ``module:function`` notation."""
 
     if ":" not in spec:
@@ -228,7 +402,60 @@ def load_external_method(spec: str) -> Callable[[np.ndarray, list[int]], dict[in
 
 METHODS = {
     "baseline_lstsq": analyze_with_baseline_lstsq,
-    "gcstar_cgc": analyze_with_gcstar_cgc,
-    "gcstar_fcgc": analyze_with_gcstar_fcgc,
+    "gcstar_cgc": analyze_with_fast_gcstar_cgc,
+    "gcstar_fcgc": analyze_with_fast_gcstar_fcgc,
+    "fast_gcstar_cgc": analyze_with_fast_gcstar_cgc,
+    "fast_gcstar_fcgc": analyze_with_fast_gcstar_fcgc,
+    "legacy_gcstar_cgc": analyze_with_gcstar_cgc,
+    "legacy_gcstar_fcgc": analyze_with_gcstar_fcgc,
+    "pcmciplus": analyze_with_pcmciplus,
+    "fullci": analyze_with_fullci,
+    "lpcmci": analyze_with_lpcmci,
     "user_method": analyze_with_user_method,
+}
+
+METHOD_METADATA: dict[str, dict[str, object]] = {
+    "gcstar_cgc": {
+        "implementation": "FastGcStar",
+        "variant": "cgc",
+        "exact_circular_shift_null": True,
+        "ridge": 1e-6,
+        "screen_alpha": 0.2,
+    },
+    "gcstar_fcgc": {
+        "implementation": "FastGcStar",
+        "variant": "fcgc",
+        "exact_circular_shift_null": True,
+        "ridge": 1e-6,
+        "screen_alpha": 0.2,
+    },
+    "fast_gcstar_cgc": {
+        "implementation": "FastGcStar",
+        "variant": "cgc",
+        "exact_circular_shift_null": True,
+        "ridge": 1e-6,
+        "screen_alpha": 0.2,
+    },
+    "fast_gcstar_fcgc": {
+        "implementation": "FastGcStar",
+        "variant": "fcgc",
+        "exact_circular_shift_null": True,
+        "ridge": 1e-6,
+        "screen_alpha": 0.2,
+    },
+    "legacy_gcstar_cgc": {"implementation": "GcStar", "variant": "cgc"},
+    "legacy_gcstar_fcgc": {"implementation": "GcStar", "variant": "fcgc"},
+    "pcmciplus": {
+        "implementation": "Tigramite PCMCI+",
+        "pc_alpha": 0.05,
+        "fixed_lag": PCMCI_FIXED_LAG,
+        "depth_parameter": "maximum_conditioning_set_size",
+        "conditioning_caps": list(PCMCI_CONDITIONING_PARAMETERS),
+    },
+    "fullci": {"implementation": "Tigramite FullCI"},
+    "lpcmci": {
+        "implementation": "Tigramite LPCMCI",
+        "pc_alpha": 0.05,
+        "collapse": "all nonempty PAG marks",
+    },
 }

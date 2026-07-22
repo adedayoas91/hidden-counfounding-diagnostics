@@ -1,0 +1,13 @@
+{
+  "created_at": "2026-07-05T20:04:22.633577+00:00",
+  "analysis": "mechanism_ablations_nonstationarity",
+  "scenarios": [
+    "time_varying_coefficients",
+    "regime_shift"
+  ],
+  "methods": [
+    "gcstar_cgc",
+    "gcstar_fcgc"
+  ],
+  "total_experiments": 40
+}

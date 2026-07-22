@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 from statistics import mean
 
+import numpy as np
+
 
 def require_matplotlib():
     """Import matplotlib with a local writable config cache."""
@@ -16,6 +18,9 @@ def require_matplotlib():
     cache_dir.mkdir(exist_ok=True)
     os.environ.setdefault("MPLCONFIGDIR", str(cache_dir))
     try:
+        import matplotlib
+
+        matplotlib.use("Agg", force=True)
         import matplotlib.pyplot as plt
     except ImportError as exc:  # pragma: no cover - optional dependency
         raise SystemExit(
@@ -96,3 +101,92 @@ def plot_bootstrap(bootstrap_json: Path, output_dir: Path) -> None:
     plt.tight_layout()
     plt.savefig(output_dir / "bootstrap_T_obs.png", dpi=200)
     plt.close()
+
+
+def plot_T_boot_histogram(
+    T_boot: list[float] | np.ndarray,
+    T_obs: float,
+    critical_values: dict[float | str, float],
+    output_path: str | Path,
+) -> Path:
+    """Write a calibrated global-statistic histogram."""
+    values = np.asarray(T_boot, dtype=float)
+    if values.ndim != 1 or values.size == 0 or not np.isfinite(values).all():
+        raise ValueError("T_boot must be a non-empty finite one-dimensional array")
+
+    plt = require_matplotlib()
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    _, axis = plt.subplots(figsize=(6, 4))
+    axis.hist(values, bins=min(30, max(5, int(np.sqrt(values.size)))), alpha=0.8)
+    axis.axvline(float(T_obs), color="red", linestyle="--", label="observed")
+    for level, critical in sorted(critical_values.items(), key=lambda item: str(item[0])):
+        axis.axvline(float(critical), linestyle=":", label=f"{level} critical")
+    axis.set(xlabel="global instability statistic", ylabel="count")
+    axis.legend()
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    plt.close()
+    return output_path
+
+
+def plot_D_p_with_bands(
+    D_p: dict[int, float],
+    D_boot_pointwise: dict[int, dict[str, float]],
+    p_values: list[int],
+    output_path: str | Path,
+) -> Path:
+    """Write the observed depth curve with pointwise bootstrap bands."""
+    depths = [int(p) for p in p_values if p in D_p and p in D_boot_pointwise]
+    if not depths:
+        raise ValueError("No shared depths across D_p, bands, and p_values")
+
+    observed = np.asarray([D_p[p] for p in depths], dtype=float)
+    lower = np.asarray([D_boot_pointwise[p]["lower"] for p in depths], dtype=float)
+    upper = np.asarray([D_boot_pointwise[p]["upper"] for p in depths], dtype=float)
+    if np.any(lower > upper):
+        raise ValueError("Pointwise lower bands cannot exceed upper bands")
+
+    plt = require_matplotlib()
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    _, axis = plt.subplots(figsize=(6, 4))
+    axis.fill_between(depths, lower, upper, alpha=0.25, label="null band")
+    axis.plot(depths, observed, marker="o", label="observed")
+    axis.set(xlabel="conditioning depth", ylabel="graph instability")
+    axis.legend()
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    plt.close()
+    return output_path
+
+
+def plot_edge_count_trajectory(
+    edge_counts: dict[int, float],
+    edge_counts_boot: dict[int, list[float] | np.ndarray],
+    output_path: str | Path,
+) -> Path:
+    """Write observed edge counts with bootstrap 95% intervals."""
+    depths = sorted(set(edge_counts).intersection(edge_counts_boot))
+    if not depths:
+        raise ValueError("No shared edge-count depths")
+    samples = [np.asarray(edge_counts_boot[p], dtype=float) for p in depths]
+    if any(values.size == 0 for values in samples):
+        raise ValueError("Bootstrap edge-count samples cannot be empty")
+
+    observed = [edge_counts[p] for p in depths]
+    lower = [float(np.quantile(values, 0.025)) for values in samples]
+    upper = [float(np.quantile(values, 0.975)) for values in samples]
+
+    plt = require_matplotlib()
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    _, axis = plt.subplots(figsize=(6, 4))
+    axis.fill_between(depths, lower, upper, alpha=0.25, label="bootstrap 95%")
+    axis.plot(depths, observed, marker="o", label="observed")
+    axis.set(xlabel="conditioning depth", ylabel="edge count")
+    axis.legend()
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    plt.close()
+    return output_path
